@@ -1,0 +1,26 @@
+Questions
+1. The main function contains calls to exit() (line 66) and pthread_exit() (line 80). How will the effect of these two calls differ when they are executed?
+exit() when called with terminate the entire process(task). While on the other hand pthread_exit() will terminate just the calling thread and still keep the
+process shared resources like mutexes, condition variables, semaphores, and file descriptors. 
+In our case the detached thread will be killed in case of exit() but will keep running in case of pthread_exit() when called in main function.
+
+2.The main function calls pthread_join() (line 77) with the parameter thread_return. Where does the value stored in thread_return come from when the consumer_thread is joined?
+By definition of pthread_join if the target thread that is being joined returns a non-null status upon its exit, 
+it copies that into the location provided(in our case thread_return). 
+exit can be a normal return value, or status passed as argument in pthread_exit() or even PTHREAD_CANCELLED in case if target thread is cancelled.
+
+3.Where does the value stored in thread_return come from if the joined thread terminated by calling pthread_exit() instead of finishing normally?
+In case of pthread_exit, the caller of pthread_join will copy the value passed in pthread_exit to the thread_return.
+
+4.On the same call to pthread_join() (line 77), what will happen if the thread being joined (consumer_thread, in this case) finishes before the main thread reaches the that line of code (line 77)?
+Usually if the target thread has not finished, the caller waits. But in this case it will return immediately and the process will continue.
+
+5.In this program, the main thread calls pthread_join() on the threads it created. Could a different thread call pthread_join() on those threads instead? Could a thread call pthread_join() on the main thread (assuming it knew the main thread's thread ID - i.e. pthread_t)?
+Yes a different thread can call pthread_join on those threads. In short any thread can call pthread_join on any non-main thread.
+
+Yes a different thread can call pthread_join() on main thread as well. But the only thing to be aware of is to not call exit from the main thread which is usually the pratice.
+As that will just kill the entire task. Rest is just similar to any other pthread_join.
+
+6. The consumer_routine function calls sched_yield() (line 180) when there are no items in the queue. Why does it call sched_yield() instead of just continuing to check the queue for an item until one arrives?
+Consumer_routine doesn't have to actually call sched_yield. But since consumer knows that it has nothing to do right now, so aggresively just 
+ask the cpu to schedule other threads. It is not a requirement to call sched_yield as cpu will time out the thread anyways.  
