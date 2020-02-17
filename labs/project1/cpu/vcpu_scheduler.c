@@ -3,7 +3,8 @@
 #include <libvirt/libvirt.h>
 #include <string.h>
 #include <unistd.h>
-#define DEBUG 0
+
+//#define DEBUG 1
 
 #ifdef DEBUG
     #define debug(fmt, ...) printf("%s:%d: " fmt, __FILE__, __LINE__, __VA_ARGS__);
@@ -155,10 +156,13 @@ void runScheduler(virDomainPtr* domains, double *currWorkload, double* prevWorkl
     qsort(prevHostCpuWorkload, npCPUs, sizeof(double), cmp);
     //if delta is small dont change pinning
     double delta = 0.0;
-    for (int i = 0; i < npCPUs; i++)
+    double total = 0.0;
+    for (int i = 0; i < npCPUs; i++){
         delta += abs(prevHostCpuWorkload[i] - runningWorkload[i]);
+        total += prevHostCpuWorkload[i];
+    }
     debug("delta= %f", delta);
-    if (delta < 10)
+    if (delta < 0.1*total)
         return;
     unsigned char map = 0x1;
     int maplen = VIR_CPU_MAPLEN(npCPUs);
@@ -172,8 +176,12 @@ void runScheduler(virDomainPtr* domains, double *currWorkload, double* prevWorkl
 
 int main(int argc, char *argv[]){
 	virConnectPtr conn;
-    int period = 2;
-
+    int period = 12;
+    if(argc == 2){
+        period = atoi(argv[1]);
+    }
+    debug("%d\n", period);
+    
 	conn = virConnectOpen("qemu:///system");
 	if(conn == NULL){
 		error("Failed to open connection to hypervisor", 1);
@@ -213,9 +221,13 @@ int main(int argc, char *argv[]){
         }
         prevVMs = nVMs;
         sleep(period);
+        for(int i=0; i<nVMs; i++)
+		    virDomainFree(domains[i]);	
+	
         nVMs = getActiveVMs(conn, &domains);
     }
 	for(int i=0; i<nVMs; i++)
 		virDomainFree(domains[i]);	
+    free(domains);
 	virConnectClose(conn);
 }
