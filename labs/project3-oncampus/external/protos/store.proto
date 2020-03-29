@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package store;
+
+// The store service definition.
+service Store {
+  // Requests list of prices for a product from store, for different vendors registered at the store
+	rpc getProducts (ProductQuery) returns (ProductReply) {}
+}
+
+// The request message containing the product_name
+message ProductQuery {
+	string product_name = 1;
+}
+
+// The response message containing the list of product info
+message ProductReply {
+	repeated ProductInfo products = 1;
+}
+
+message ProductInfo {
+	double price = 1;
+	string vendor_id = 2;
+	
+}
