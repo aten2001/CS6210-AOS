@@ -1,0 +1,21 @@
+#PBS -N cs6210-proj2-mpihello
+#PBS -l nodes=1:ncpus=1:mpiprocs=1
+#PBS -l nodes=rich133-k40-23-r.pace.gatech.edu
+#PBS -l pmem=1gb
+#PBS -l walltime=00:05:00
+#PBS -q coc-ice
+#PBS -j oe
+#PBS -o check.out
+
+echo "Started on `/bin/hostname`"
+echo "Nodes chosen are:"
+cat $PBS_NODEFILE
+
+cd ~/barriers/mpi_tour/
+
+module load gcc mvapich2/2.3
+/usr/local/pacerepov1/openmpi/1.8/gcc-4.9.0/bin/mpicc -Wall tournament_barrier.c -o tournament_barrier
+
+/usr/local/pacerepov1/openmpi/1.8/gcc-4.9.0/bin/mpirun -np 1 ./tournament_barrier
+
+#rich133-h35-16-r.pace.gatech.edu+rich133-h35-16-l.pace.gatech.edu+rich133-h35-17-r.pace.gatech.edu+rich133-h35-18-r.pace.gatech.edu

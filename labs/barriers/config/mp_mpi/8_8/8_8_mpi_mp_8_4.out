@@ -1,0 +1,62 @@
+---------------------------------------
+Begin PBS Prologue Fri Mar  6 14:47:59 EST 2020
+Job ID:     148686.ice-sched.pace.gatech.edu
+User ID:    gkakkar7
+Job name:   cs6210-proj2-mpihello
+Queue:      coc-ice
+End PBS Prologue Fri Mar  6 14:47:59 EST 2020
+---------------------------------------
+Started on rich133-k40-21-l.pace.gatech.edu
+Nodes chosen are:
+rich133-k40-21-l.pace.gatech.edu
+rich133-k40-21-r.pace.gatech.edu
+rich133-k40-22-r.pace.gatech.edu
+rich133-k40-22-l.pace.gatech.edu
+rich133-h35-16-l.pace.gatech.edu
+rich133-h35-16-r.pace.gatech.edu
+rich133-h35-17-l.pace.gatech.edu
+rich133-h35-17-r.pace.gatech.edu
+tourmination_barrier.c: In function ‘tournament_barrier_init’:
+tourmination_barrier.c:52:6: warning: unused variable ‘nrounds’ [-Wunused-variable]
+  int nrounds = (int)ceil(log2threads);    // determine max number of rounds for barrier
+      ^
+tourmination_barrier.c: In function ‘dissemination_barrier’:
+tourmination_barrier.c:92:6: warning: variable ‘ret’ set but not used [-Wunused-but-set-variable]
+  int ret, recv_rank, send_rank, pow2;
+      ^
+tourmination_barrier.c: In function ‘main’:
+tourmination_barrier.c:245:11: warning: unused variable ‘time_taken’ [-Wunused-variable]
+    double time_taken; 
+           ^
+tourmination_barrier.c:243:25: warning: unused variable ‘end’ [-Wunused-variable]
+   struct timeval start, end;
+                         ^
+tourmination_barrier.c:243:18: warning: unused variable ‘start’ [-Wunused-variable]
+   struct timeval start, end;
+                  ^
+tourmination_barrier.c:295:1: warning: control reaches end of non-void function [-Wreturn-type]
+ }
+ ^
+Avg time across all barrier 62690380.036831 ns
+Avg time across all barrier 62695090.949535 ns
+Avg time across all barrier 62695189.952850 ns
+Avg time across all barrier 62695606.172085 ns
+Avg time across all barrier 62698128.283024 ns
+Avg time across all barrier 62702134.251595 ns
+Avg time across all barrier 62703568.994999 ns
+Avg time across all barrier 62703488.230705 ns
+Avg Barrier time across all processes 62697948.358953---------------------------------------
+Begin PBS Epilogue Fri Mar  6 14:49:03 EST 2020
+Job ID:     148686.ice-sched.pace.gatech.edu
+User ID:    gkakkar7
+Job name:   cs6210-proj2-mpihello
+Resources:  neednodes=rich133-k40-21-l.pace.gatech.edu+rich133-k40-21-r.pace.gatech.edu+rich133-k40-22-r.pace.gatech.edu+rich133-k40-22-l.pace.gatech.edu+rich133-h35-16-l.pace.gatech.edu+rich133-h35-16-r.pace.gatech.edu+rich133-h35-17-l.pace.gatech.edu+rich133-h35-17-r.pace.gatech.edu,nodes=rich133-k40-21-l.pace.gatech.edu+rich133-k40-21-r.pace.gatech.edu+rich133-k40-22-r.pace.gatech.edu+rich133-k40-22-l.pace.gatech.edu+rich133-h35-16-l.pace.gatech.edu+rich133-h35-16-r.pace.gatech.edu+rich133-h35-17-l.pace.gatech.edu+rich133-h35-17-r.pace.gatech.edu,pmem=1gb,walltime=00:05:00
+Rsrc Used:  cput=00:05:45,energy_used=0,mem=329920kb,vmem=2382944kb,walltime=00:01:03
+Queue:      coc-ice
+Nodes:     
+rich133-h35-16-l.pace.gatech.edu rich133-h35-16-r.pace.gatech.edu 
+rich133-h35-17-l.pace.gatech.edu rich133-h35-17-r.pace.gatech.edu 
+rich133-k40-21-l.pace.gatech.edu rich133-k40-21-r.pace.gatech.edu 
+rich133-k40-22-l.pace.gatech.edu rich133-k40-22-r.pace.gatech.edu
+End PBS Epilogue Fri Mar  6 14:49:03 EST 2020
+---------------------------------------

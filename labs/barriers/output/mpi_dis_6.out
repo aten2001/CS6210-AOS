@@ -1,0 +1,50 @@
+---------------------------------------
+Begin PBS Prologue Fri Mar  6 11:43:01 EST 2020
+Job ID:     147890.ice-sched.pace.gatech.edu
+User ID:    gkakkar7
+Job name:   cs6210-proj2-mpihello
+Queue:      coc-ice
+End PBS Prologue Fri Mar  6 11:43:01 EST 2020
+---------------------------------------
+Started on rich133-k40-22-r.pace.gatech.edu
+Nodes chosen are:
+rich133-k40-22-r.pace.gatech.edu
+rich133-k40-23-l.pace.gatech.edu
+rich133-k40-20-r.pace.gatech.edu
+rich133-k40-26-l.pace.gatech.edu
+rich133-k40-27-l.pace.gatech.edu
+rich133-k40-27-r.pace.gatech.edu
+dissemination_barrier.c: In function ‘dissemination_barrier’:
+dissemination_barrier.c:29:6: warning: variable ‘ret’ set but not used [-Wunused-but-set-variable]
+  int ret, recv_rank, send_rank, pow2;
+      ^
+dissemination_barrier.c: In function ‘main’:
+dissemination_barrier.c:69:24: warning: unused variable ‘end’ [-Wunused-variable]
+  struct timeval start, end;
+                        ^
+dissemination_barrier.c:69:17: warning: unused variable ‘start’ [-Wunused-variable]
+  struct timeval start, end;
+                 ^
+dissemination_barrier.c:110:1: warning: control reaches end of non-void function [-Wreturn-type]
+ }
+ ^
+Avg Time taken per barrier by process 0 is 0.058977 ms
+Avg Time taken per barrier by process 5 is 0.058881 ms
+Avg Time taken per barrier by process 4 is 0.058983 ms
+Avg Time taken per barrier by process 2 is 0.058968 ms
+Avg Time taken per barrier by process 1 is 0.058933 ms
+Avg Time taken per barrier by process 3 is 0.058875 ms
+Avg Barrier time across all processes 58936.198552---------------------------------------
+Begin PBS Epilogue Fri Mar  6 11:43:01 EST 2020
+Job ID:     147890.ice-sched.pace.gatech.edu
+User ID:    gkakkar7
+Job name:   cs6210-proj2-mpihello
+Resources:  neednodes=rich133-k40-22-r.pace.gatech.edu+rich133-k40-23-l.pace.gatech.edu+rich133-k40-20-r.pace.gatech.edu+rich133-k40-26-l.pace.gatech.edu+rich133-k40-27-l.pace.gatech.edu+rich133-k40-27-r.pace.gatech.edu,nodes=rich133-k40-22-r.pace.gatech.edu+rich133-k40-23-l.pace.gatech.edu+rich133-k40-20-r.pace.gatech.edu+rich133-k40-26-l.pace.gatech.edu+rich133-k40-27-l.pace.gatech.edu+rich133-k40-27-r.pace.gatech.edu,pmem=1gb,walltime=00:05:00
+Rsrc Used:  cput=00:00:00,energy_used=0,mem=0kb,vmem=0kb,walltime=00:00:00
+Queue:      coc-ice
+Nodes:     
+rich133-k40-20-r.pace.gatech.edu rich133-k40-22-r.pace.gatech.edu 
+rich133-k40-23-l.pace.gatech.edu rich133-k40-26-l.pace.gatech.edu 
+rich133-k40-27-l.pace.gatech.edu rich133-k40-27-r.pace.gatech.edu
+End PBS Epilogue Fri Mar  6 11:43:01 EST 2020
+---------------------------------------

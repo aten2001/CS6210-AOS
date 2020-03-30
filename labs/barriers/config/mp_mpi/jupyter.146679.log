@@ -1,0 +1,30 @@
+To connect to your notebook, run the following command on your laptop/workstation:
+
+ssh -t -L 8835:localhost:8835 gkakkar7@coc-ice.pace.gatech.edu ssh -L 8835:localhost:8835 rich133-h35-15-r
+
+Do not close the terminal where that is running, and open the address below in your browser:
+
+[I 03:01:22.416 NotebookApp] Serving notebooks from local directory: /nv/coc-ice/gkakkar7
+[I 03:01:22.416 NotebookApp] The Jupyter Notebook is running at:
+[I 03:01:22.416 NotebookApp] http://localhost:8835/?token=d07647641cc5f0e632bd4c8c6420cd9bee1d8dbe4ef53fd9
+[I 03:01:22.416 NotebookApp] Use Control-C to stop this server and shut down all kernels (twice to skip confirmation).
+[C 03:01:22.417 NotebookApp] 
+    
+    Copy/paste this URL into your browser when you connect for the first time,
+    to login with a token:
+        http://localhost:8835/?token=d07647641cc5f0e632bd4c8c6420cd9bee1d8dbe4ef53fd9
+[I 03:02:04.845 NotebookApp] 302 GET /?token=d07647641cc5f0e632bd4c8c6420cd9bee1d8dbe4ef53fd9 (127.0.0.1) 0.51ms
+[I 03:02:34.717 NotebookApp] Saving file at /barriers/config/mp_mpi/2-node.pbs
+[I 03:02:44.036 NotebookApp] Saving file at /barriers/config/mp_mpi/4-node.pbs
+[I 03:02:52.161 NotebookApp] Saving file at /barriers/config/mp_mpi/6-node.pbs
+[I 03:03:01.770 NotebookApp] Saving file at /barriers/config/mp_mpi/8-node.pbs
+[I 03:03:07.617 NotebookApp] Saving file at /barriers/config/mp_mpi/8-node.pbs
+[I 03:03:43.118 NotebookApp] Saving file at /barriers/config/mp_mpi/6-node.pbs
+[I 03:03:52.419 NotebookApp] Saving file at /barriers/config/mp_mpi/8-node.pbs
+[I 03:04:00.984 NotebookApp] Saving file at /barriers/config/mp_mpi/4-node.pbs
+[I 03:04:11.358 NotebookApp] Saving file at /barriers/config/mp_mpi/2-node.pbs
+[I 03:05:57.277 NotebookApp] Saving file at /barriers/config/mp_mpi/2-node.pbs
+[I 03:06:04.863 NotebookApp] Saving file at /barriers/config/mp_mpi/4-node.pbs
+[I 03:06:13.128 NotebookApp] Saving file at /barriers/config/mp_mpi/6-node.pbs
+[I 03:06:20.852 NotebookApp] Saving file at /barriers/config/mp_mpi/8-node.pbs
+[C 03:22:09.540 NotebookApp] received signal 15, stopping

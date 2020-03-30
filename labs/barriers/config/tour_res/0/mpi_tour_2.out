@@ -1,0 +1,36 @@
+---------------------------------------
+Begin PBS Prologue Thu Mar  5 19:04:38 EST 2020
+Job ID:     145308.ice-sched.pace.gatech.edu
+User ID:    gkakkar7
+Job name:   cs6210-proj2-mpihello
+Queue:      coc-ice
+End PBS Prologue Thu Mar  5 19:04:38 EST 2020
+---------------------------------------
+Started on rich133-h35-16-r.pace.gatech.edu
+Nodes chosen are:
+rich133-h35-16-r.pace.gatech.edu
+rich133-h35-16-l.pace.gatech.edu
+tournament_barrier.c: In function ‘main’:
+tournament_barrier.c:87:24: warning: unused variable ‘end’ [-Wunused-variable]
+  struct timeval start, end;
+                        ^
+tournament_barrier.c:87:17: warning: unused variable ‘start’ [-Wunused-variable]
+  struct timeval start, end;
+                 ^
+tournament_barrier.c:125:1: warning: control reaches end of non-void function [-Wreturn-type]
+ }
+ ^
+Avg Time taken per barrier by process 0 is 0.042384 ms
+Avg Time taken per barrier by process 1 is 0.042372 ms
+Avg Barrier time across all processes 0.042378---------------------------------------
+Begin PBS Epilogue Thu Mar  5 19:04:38 EST 2020
+Job ID:     145308.ice-sched.pace.gatech.edu
+User ID:    gkakkar7
+Job name:   cs6210-proj2-mpihello
+Resources:  neednodes=rich133-h35-16-r.pace.gatech.edu+rich133-h35-16-l.pace.gatech.edu,nodes=rich133-h35-16-r.pace.gatech.edu+rich133-h35-16-l.pace.gatech.edu,pmem=1gb,walltime=00:05:00
+Rsrc Used:  cput=00:00:00,energy_used=0,mem=0kb,vmem=0kb,walltime=00:00:00
+Queue:      coc-ice
+Nodes:     
+rich133-h35-16-l.pace.gatech.edu rich133-h35-16-r.pace.gatech.edu
+End PBS Epilogue Thu Mar  5 19:04:38 EST 2020
+---------------------------------------

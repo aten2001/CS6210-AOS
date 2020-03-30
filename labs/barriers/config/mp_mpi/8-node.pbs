@@ -1,0 +1,21 @@
+#PBS -N cs6210-proj2-mpihello
+#PBS -l nodes=8:ppn=8
+#PBS -l nodes=rich133-k40-21-l.pace.gatech.edu+rich133-k40-21-r.pace.gatech.edu+rich133-k40-22-r.pace.gatech.edu+rich133-k40-22-l.pace.gatech.edu+rich133-h35-16-l.pace.gatech.edu+rich133-h35-16-r.pace.gatech.edu+rich133-h35-17-l.pace.gatech.edu+rich133-h35-17-r.pace.gatech.edu
+#PBS -l pmem=1gb
+#PBS -l walltime=00:05:00
+#PBS -q coc-ice
+#PBS -j oe
+#PBS -o 8_8_mpi_mp_8_2.out
+
+echo "Started on `/bin/hostname`"
+echo "Nodes chosen are:"
+cat $PBS_NODEFILE
+
+cd ~/barriers/mpi_omp_tourmination_barrier/
+
+module load gcc/4.9.0 mvapich2/2.3
+
+/usr/local/pacerepov1/openmpi/1.8/gcc-4.9.0/bin/mpicc -Wall -lm -fopenmp -lgomp tourmination_barrier.c -o tourmination_barrier
+
+/usr/local/pacerepov1/openmpi/1.8/gcc-4.9.0/bin/mpirun -np 8 ./tourmination_barrier 2
+export OMP_NUM_THREADS=8

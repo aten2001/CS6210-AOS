@@ -1,0 +1,33 @@
+---------------------------------------
+Begin PBS Prologue Fri Mar  6 03:01:20 EST 2020
+Job ID:     146679.ice-sched.pace.gatech.edu
+User ID:    gkakkar7
+Job name:   jupyter
+Queue:      coc-ice
+End PBS Prologue Fri Mar  6 03:01:20 EST 2020
+---------------------------------------
+ =========================================================================
+|                                                                         |
+|       A note about python/3.6:                                          |
+|       PACE is lacking the staff to install all of the python 3          |
+|       modules, but we do maintain an anaconda distribution for          |
+|       both python 2 and python 3. As conda significantly reduces        |
+|       the overhead with package management, we would much prefer        |
+|       to maintain python 3 through anaconda.                            |
+|                                                                         |
+|       All pace installed modules are visible via the module avail       |
+|       command.                                                          |
+|                                                                         |
+ =========================================================================
+---------------------------------------
+Begin PBS Epilogue Fri Mar  6 03:22:09 EST 2020
+Job ID:     146679.ice-sched.pace.gatech.edu
+User ID:    gkakkar7
+Job name:   jupyter
+Resources:  neednodes=1:ppn=28,nodes=1:ppn=28,walltime=01:30:00
+Rsrc Used:  cput=00:00:01,energy_used=0,mem=54084kb,vmem=558864kb,walltime=00:20:49
+Queue:      coc-ice
+Nodes:     
+rich133-h35-15-r.pace.gatech.edu
+End PBS Epilogue Fri Mar  6 03:22:10 EST 2020
+---------------------------------------

@@ -1,0 +1,60 @@
+---------------------------------------
+Begin PBS Prologue Fri Mar  6 11:52:21 EST 2020
+Job ID:     147934.ice-sched.pace.gatech.edu
+User ID:    gkakkar7
+Job name:   cs6210-proj2-mpihello
+Queue:      coc-ice
+End PBS Prologue Fri Mar  6 11:52:21 EST 2020
+---------------------------------------
+Started on rich133-k40-24-r.pace.gatech.edu
+Nodes chosen are:
+rich133-k40-24-r.pace.gatech.edu
+rich133-k40-25-l.pace.gatech.edu
+rich133-k40-25-r.pace.gatech.edu
+rich133-k40-26-l.pace.gatech.edu
+rich133-k40-26-r.pace.gatech.edu
+rich133-k40-27-l.pace.gatech.edu
+rich133-k40-27-r.pace.gatech.edu
+rich133-k40-29.pace.gatech.edu
+rich133-h35-17-l.pace.gatech.edu
+rich133-h35-17-r.pace.gatech.edu
+dissemination_barrier.c: In function ‘dissemination_barrier’:
+dissemination_barrier.c:29:6: warning: variable ‘ret’ set but not used [-Wunused-but-set-variable]
+  int ret, recv_rank, send_rank, pow2;
+      ^
+dissemination_barrier.c: In function ‘main’:
+dissemination_barrier.c:69:24: warning: unused variable ‘end’ [-Wunused-variable]
+  struct timeval start, end;
+                        ^
+dissemination_barrier.c:69:17: warning: unused variable ‘start’ [-Wunused-variable]
+  struct timeval start, end;
+                 ^
+dissemination_barrier.c:110:1: warning: control reaches end of non-void function [-Wreturn-type]
+ }
+ ^
+--------------------------------------------------------------------------
+mpirun was unable to launch the specified application as it could not access
+or execute an executable:
+
+Executable: ./dissemination_barrier
+Node: rich133-k40-26-r.pace.gatech.edu
+
+while attempting to start process rank 4.
+--------------------------------------------------------------------------
+7 total processes failed to start
+---------------------------------------
+Begin PBS Epilogue Fri Mar  6 11:52:22 EST 2020
+Job ID:     147934.ice-sched.pace.gatech.edu
+User ID:    gkakkar7
+Job name:   cs6210-proj2-mpihello
+Resources:  neednodes=rich133-k40-24-r.pace.gatech.edu+rich133-k40-25-l.pace.gatech.edu+rich133-k40-25-r.pace.gatech.edu+rich133-k40-26-l.pace.gatech.edu+rich133-k40-26-r.pace.gatech.edu+rich133-k40-27-l.pace.gatech.edu+rich133-k40-27-r.pace.gatech.edu+rich133-k40-29.pace.gatech.edu+rich133-h35-17-l.pace.gatech.edu+rich133-h35-17-r.pace.gatech.edu,nodes=rich133-k40-24-r.pace.gatech.edu+rich133-k40-25-l.pace.gatech.edu+rich133-k40-25-r.pace.gatech.edu+rich133-k40-26-l.pace.gatech.edu+rich133-k40-26-r.pace.gatech.edu+rich133-k40-27-l.pace.gatech.edu+rich133-k40-27-r.pace.gatech.edu+rich133-k40-29.pace.gatech.edu+rich133-h35-17-l.pace.gatech.edu+rich133-h35-17-r.pace.gatech.edu,pmem=1gb,walltime=00:05:00
+Rsrc Used:  cput=00:00:00,energy_used=0,mem=19016kb,vmem=465008kb,walltime=00:00:01
+Queue:      coc-ice
+Nodes:     
+rich133-h35-17-l.pace.gatech.edu rich133-h35-17-r.pace.gatech.edu 
+rich133-k40-24-r.pace.gatech.edu rich133-k40-25-l.pace.gatech.edu 
+rich133-k40-25-r.pace.gatech.edu rich133-k40-26-l.pace.gatech.edu 
+rich133-k40-26-r.pace.gatech.edu rich133-k40-27-l.pace.gatech.edu 
+rich133-k40-27-r.pace.gatech.edu rich133-k40-29.pace.gatech.edu
+End PBS Epilogue Fri Mar  6 11:52:22 EST 2020
+---------------------------------------

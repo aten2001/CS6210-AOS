@@ -1,0 +1,41 @@
+---------------------------------------
+Begin PBS Prologue Fri Mar  6 01:44:48 EST 2020
+Job ID:     146466.ice-sched.pace.gatech.edu
+User ID:    gkakkar7
+Job name:   cs6210-proj2-mpihello
+Queue:      coc-ice
+End PBS Prologue Fri Mar  6 01:44:48 EST 2020
+---------------------------------------
+Started on rich133-k40-24-r.pace.gatech.edu
+Nodes chosen are:
+rich133-k40-24-r.pace.gatech.edu
+rich133-k40-25-l.pace.gatech.edu
+rich133-k40-25-r.pace.gatech.edu
+rich133-k40-26-l.pace.gatech.edu
+tournament_barrier.c: In function ‘main’:
+tournament_barrier.c:87:24: warning: unused variable ‘end’ [-Wunused-variable]
+  struct timeval start, end;
+                        ^
+tournament_barrier.c:87:17: warning: unused variable ‘start’ [-Wunused-variable]
+  struct timeval start, end;
+                 ^
+tournament_barrier.c:123:1: warning: control reaches end of non-void function [-Wreturn-type]
+ }
+ ^
+Avg Time taken per barrier by process 0 is 0.055274 ms
+Avg Time taken per barrier by process 1 is 0.055211 ms
+Avg Time taken per barrier by process 2 is 0.055209 ms
+Avg Time taken per barrier by process 3 is 0.055131 ms
+Avg Barrier time across all processes 55206.239223---------------------------------------
+Begin PBS Epilogue Fri Mar  6 01:44:48 EST 2020
+Job ID:     146466.ice-sched.pace.gatech.edu
+User ID:    gkakkar7
+Job name:   cs6210-proj2-mpihello
+Resources:  neednodes=rich133-k40-24-r.pace.gatech.edu+rich133-k40-25-l.pace.gatech.edu+rich133-k40-25-r.pace.gatech.edu+rich133-k40-26-l.pace.gatech.edu,nodes=rich133-k40-24-r.pace.gatech.edu+rich133-k40-25-l.pace.gatech.edu+rich133-k40-25-r.pace.gatech.edu+rich133-k40-26-l.pace.gatech.edu,pmem=1gb,walltime=00:05:00
+Rsrc Used:  cput=00:00:00,energy_used=0,mem=0kb,vmem=0kb,walltime=00:00:00
+Queue:      coc-ice
+Nodes:     
+rich133-k40-24-r.pace.gatech.edu rich133-k40-25-l.pace.gatech.edu 
+rich133-k40-25-r.pace.gatech.edu rich133-k40-26-l.pace.gatech.edu
+End PBS Epilogue Fri Mar  6 01:44:49 EST 2020
+---------------------------------------

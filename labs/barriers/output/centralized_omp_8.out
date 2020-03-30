@@ -1,0 +1,10 @@
+nthreads 8
+Avg Time taken per barrier by process 7 is 1617.000000 ns
+Avg Time taken per barrier by process 6 is 1613.000000 ns
+Avg Time taken per barrier by process 2 is 1618.000000 ns
+Avg Time taken per barrier by process 0 is 1610.000000 ns
+Avg Time taken per barrier by process 1 is 1617.000000 ns
+Avg Time taken per barrier by process 3 is 1617.000000 ns
+Avg Time taken per barrier by process 4 is 1614.000000 ns
+Avg Time taken per barrier by process 5 is 1612.000000 ns
+Avg time across all barrier 1614.750000 ns

@@ -1,0 +1,18 @@
+nthreads 16
+Avg Time taken per barrier by process 10 is 2663.000000 ns
+Avg Time taken per barrier by process 15 is 2659.000000 ns
+Avg Time taken per barrier by process 11 is 2662.000000 ns
+Avg Time taken per barrier by process 0 is 2664.000000 ns
+Avg Time taken per barrier by process 9 is 2662.000000 ns
+Avg Time taken per barrier by process 8 is 2664.000000 ns
+Avg Time taken per barrier by process 13 is 2664.000000 ns
+Avg Time taken per barrier by process 3 is 2662.000000 ns
+Avg Time taken per barrier by process 5 is 2663.000000 ns
+Avg Time taken per barrier by process 14 is 2662.000000 ns
+Avg Time taken per barrier by process 4 is 2664.000000 ns
+Avg Time taken per barrier by process 2 is 2662.000000 ns
+Avg Time taken per barrier by process 7 is 2665.000000 ns
+Avg Time taken per barrier by process 1 is 2664.000000 ns
+Avg Time taken per barrier by process 12 is 2662.000000 ns
+Avg Time taken per barrier by process 6 is 2664.000000 ns
+Avg time across all barrier 2662.875000 ns
