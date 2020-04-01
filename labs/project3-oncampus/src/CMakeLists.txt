@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.10)
 
 project(project3)
 
-add_executable(store store.cc threadpool.h)
+add_executable(store store.cc threadpool.h threadpool.cc)
 target_link_libraries(store 
 	Threads::Threads
        	gRPC::grpc++
