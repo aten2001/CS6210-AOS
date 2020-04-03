@@ -19,8 +19,8 @@ ThreadPool::ThreadPool(int nthreads, std::vector<std::string> vendors)
 	task_cnt = 0;
 	num_threads = nthreads;
 
-    pthread_cond_init(&cond, NULL);
-    pthread_mutex_init(&mutex, NULL);
+	pthread_cond_init(&cond, NULL);
+	pthread_mutex_init(&mutex, NULL);
 
 	std::vector<std::string>::iterator it;
 	for (it = vendors.begin(); it != vendors.end(); it++) {
@@ -88,26 +88,23 @@ void ThreadPool::runWorker(void *tp)
 	return;
 }
 
-Task* ThreadPool::addTask(const std::string& query)
+void ThreadPool::addTask(Task *t)
 {
 	int task_id;
-	Task *t = new Task;
 
 	pthread_mutex_lock(&mutex);
 
-	// initialize task structure
 	t->task_id = task_cnt++;
-	t->query = query;
-	sem_init(&t->sem, 0, 0);
+
 	tasks.push(t);
 
 	pthread_mutex_unlock(&mutex);
 
 	pthread_cond_signal(&cond);
 
-	std::cout << "Added task (" << t->task_id << ", " << query << ") to tasklist\n";
+	std::cout << "Added task (" << t->task_id << ", " << t->query << ") to tasklist\n";
 
-	return t;
+	return;
 }
 
 void ThreadPool::runTask(Task *t)
@@ -118,6 +115,8 @@ void ThreadPool::runTask(Task *t)
 
 	std::vector<VendorClient *>::iterator it;
 	std::vector<VendorCall *> calls;
+
+	ProductReply reply;
 
 	// Send bid request to vendor
 	i = 0;
@@ -135,35 +134,27 @@ void ThreadPool::runTask(Task *t)
 		vc->WaitForProductBidReply();
 	}
 
-	// Inform waiting thread of replies
-	t->replies = calls;
-	sem_post(&t->sem);
-	std::cout << "Thread " << thread_id << ": Completed query: " << query << ". Sem posting task " << t->task_id << "\n";
+	std::cout << "Thread " << thread_id << ": Completed query: " << t->query << ". Sem posting task " << t->task_id << "\n";
 
-	return;
-}
+	std::vector<VendorCall *>::iterator it_vc;
+	for (it_vc = calls.begin(); it_vc != calls.end(); ++it_vc) {
+		VendorCall *call = *it_vc;
 
-
-
-void ThreadPool::getThreadEvent(Task *t, ProductReply *reply)
-{
-	std::cout << "Task " << t->task_id << " waiting on semaphore\n";
-	sem_wait(&t->sem);		
-	std::cout << "Task " << t->task_id << " done waiting on semaphore. Query : " << t->query << "\n";
-
-	std::vector<VendorCall *>::iterator it;
-
-	for (it = t->replies.begin(); it != t->replies.end(); ++it) {
-		VendorCall *call = *it;
-
-		ProductInfo* product_info = reply->add_products();
+		ProductInfo* product_info = reply.add_products();
 		product_info->set_price(call->reply.price());
 		product_info->set_vendor_id(call->reply.vendor_id());
 		//std::cout << "Bid: (" << t->query << ", " << call->reply.vendor_id() << ", " << call->reply.price() << ")" << std::endl;
 
 		delete call;
 	}
+
+	t->cdata->SetReply(reply);
+	t->cdata->Proceed();
+
+	std::cout << "Thread " << thread_id << ": Sent Bids to client. Task " << t->task_id << " completed\n";
+
 	delete t;
+
 	return;
 }
 

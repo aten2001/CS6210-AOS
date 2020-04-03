@@ -17,17 +17,30 @@
 #include <vector>
 #include <queue>
 
+//grpc stuff
+using grpc::Server;
+using grpc::ServerAsyncResponseWriter;
+using grpc::ServerBuilder;
+using grpc::ServerCompletionQueue;
+using grpc::ServerContext;
 using grpc::ClientAsyncResponseReader;
 using grpc::ClientContext;
 using grpc::CompletionQueue;
 using grpc::Channel;
+using grpc::Status;
+
+//Store related stuff
 using store::ProductInfo;
 using store::ProductQuery;
 using store::ProductReply;
+using store::Store;
+
+//Vendor related stuff
 using vendor::BidQuery;
 using vendor::BidReply;
 using vendor::Vendor;
-using grpc::Status;
+
+class CallData;
 
 // structure that contains variables to make asynchronous call
 struct VendorCall
@@ -41,10 +54,9 @@ struct VendorCall
 // structure to hold task input, output, id and a semaphore for events
 struct Task
 {
-	std::string query;
 	int task_id;
-	sem_t sem;
-	std::vector<VendorCall *> replies;
+	std::string query;
+	CallData  *cdata;
 };
 
 class ThreadPool {
@@ -61,9 +73,8 @@ class ThreadPool {
 	public:
 		ThreadPool(int nthreads, std::vector<std::string>);
 		~ThreadPool();
-		Task* addTask(const std::string& query);
+		void addTask(Task *t);
 		void runTask(Task *t);
-		void getThreadEvent(Task *t, ProductReply *reply);
 		void runWorker(void *);
 
 		static void* runWorkerThread(void *tp)
@@ -86,4 +97,85 @@ class VendorClient
 		std::unique_ptr<Vendor::Stub> clientStub;
 		struct VendorCall *call;
 
+};
+
+
+class CallData {
+	public:
+		// Take in the "service" instance (in this case representing an asynchronous
+		// server) and the completion queue "cq" used for asynchronous communication
+		// with the gRPC runtime.
+		CallData(Store::AsyncService* service, ServerCompletionQueue* cq, ThreadPool *pool)
+			: service_(service), cq_(cq), responder_(&ctx_), status_(CREATE), pool(pool)
+		{
+			// Invoke the serving logic right away.
+			Proceed();
+		}
+
+		void Proceed()
+		{
+			if (status_ == CREATE) {
+				// Make this instance progress to the PROCESS state.
+				status_ = PROCESS;
+
+				service_->RequestgetProducts(&ctx_, &request_, &responder_, cq_, cq_, this);
+
+			} else if (status_ == PROCESS) {
+				// Spawn a new CallData instance to serve new clients while we process
+				// the one for this CallData. The instance will deallocate itself as
+				// part of its FINISH state.
+				new CallData(service_, cq_, pool);
+
+				// The actual processing.
+				// Call the vendor to get all the product info
+				Task *t = new Task;
+
+				t->query = request_.product_name();
+				t->cdata = this;
+				pool->addTask(t);
+				status_ = SERVICE;
+
+			} else if (status_ == SERVICE) {
+				// And we are done! Let the gRPC runtime know we've finished, using the
+				// memory address of this instance as the uniquely identifying tag for
+				// the event.
+				status_ = FINISH;
+				responder_.Finish(reply_, Status::OK, this);
+
+			} else {
+				GPR_ASSERT(status_ == FINISH);
+				// Once in the FINISH state, deallocate ourselves (CallData).
+				delete this;
+			}
+		}
+
+		void SetReply(ProductReply reply)
+		{
+			reply_ = reply;
+		}
+
+	private:
+		// The means of communication with the gRPC runtime for an asynchronous
+		// server.
+		Store::AsyncService* service_;
+		// The producer-consumer queue where for asynchronous server notifications.
+		ServerCompletionQueue* cq_;
+		// Context for the rpc, allowing to tweak aspects of it such as the use
+		// of compression, authentication, as well as to send metadata back to the
+		// client.
+		ServerContext ctx_;
+
+		// What we get from the client.
+		ProductQuery request_;
+		// What we send back to the client.
+		ProductReply reply_;
+
+		ThreadPool *pool;
+
+		// The means to get back to the client.
+		ServerAsyncResponseWriter<ProductReply> responder_;
+
+		// Let's implement a tiny state machine with the following states.
+		enum CallStatus { CREATE, PROCESS, SERVICE, FINISH };
+		CallStatus status_;  // The current serving state.
 };
