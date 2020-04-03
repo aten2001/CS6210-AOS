@@ -21,8 +21,6 @@ ThreadPool::ThreadPool(int nthreads, std::vector<std::string> vendors)
 
     pthread_cond_init(&cond, NULL);
     pthread_mutex_init(&mutex, NULL);
-    pthread_cond_init(&r_cond, NULL);
-    pthread_mutex_init(&r_mutex, NULL);
 
 	std::vector<std::string>::iterator it;
 	for (it = vendors.begin(); it != vendors.end(); it++) {
@@ -44,8 +42,6 @@ ThreadPool::~ThreadPool()
 {
 	pthread_mutex_destroy(&mutex);
 	pthread_cond_destroy(&cond);
-	pthread_mutex_destroy(&r_mutex);
-	pthread_cond_destroy(&r_cond);
 }
 
 void ThreadPool::runWorker(void *tp)
@@ -99,6 +95,7 @@ Task* ThreadPool::addTask(const std::string& query)
 
 	pthread_mutex_lock(&mutex);
 
+	// initialize task structure
 	t->task_id = task_cnt++;
 	t->query = query;
 	sem_init(&t->sem, 0, 0);
@@ -122,6 +119,7 @@ void ThreadPool::runTask(Task *t)
 	std::vector<VendorClient *>::iterator it;
 	std::vector<VendorCall *> calls;
 
+	// Send bid request to vendor
 	i = 0;
 	for (it = vendor_clients.begin(); it != vendor_clients.end(); ++it) {
 		//std::cout << "Thread " << thread_id << ": Sending Bid Request to vendor " << i++ << "\n";
@@ -129,6 +127,7 @@ void ThreadPool::runTask(Task *t)
 		vc->RequestProductBid(query, calls);
 	}
 
+	// Wait for vendor responses
 	i = 0;
 	for (it = vendor_clients.begin(); it != vendor_clients.end(); ++it) {
 		//std::cout << "Thread " << thread_id << ": Waiting for Bid Reply from vendor " << i++ << "\n";
@@ -136,6 +135,7 @@ void ThreadPool::runTask(Task *t)
 		vc->WaitForProductBidReply();
 	}
 
+	// Inform waiting thread of replies
 	t->replies = calls;
 	sem_post(&t->sem);
 	std::cout << "Thread " << thread_id << ": Completed query: " << query << ". Sem posting task " << t->task_id << "\n";
@@ -145,7 +145,7 @@ void ThreadPool::runTask(Task *t)
 
 
 
-void ThreadPool::getVendorReply(Task *t, ProductReply *reply)
+void ThreadPool::getThreadEvent(Task *t, ProductReply *reply)
 {
 	std::cout << "Task " << t->task_id << " waiting on semaphore\n";
 	sem_wait(&t->sem);		
@@ -174,6 +174,10 @@ VendorClient::VendorClient(std::shared_ptr<Channel> channel)
 {
 }
 
+VendorClient::~VendorClient()
+{
+}
+
 void VendorClient::RequestProductBid(const std::string& product_name, std::vector<VendorCall *> &calls)
 {
 	BidQuery request;
@@ -190,10 +194,9 @@ void VendorClient::RequestProductBid(const std::string& product_name, std::vecto
 }
 
 
-BidReply VendorClient::WaitForProductBidReply(void)
+void VendorClient::WaitForProductBidReply(void)
 {
 	Status status;
-	BidReply reply;
 	void* got_tag;
 	bool ok = false;
 
@@ -201,6 +204,6 @@ BidReply VendorClient::WaitForProductBidReply(void)
 	GPR_ASSERT(got_tag == (void*)1);
 	GPR_ASSERT(ok);
 
-	return reply;
+	return;
 }
 

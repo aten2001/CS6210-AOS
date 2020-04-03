@@ -99,7 +99,7 @@ class StoreImpl
 
 						Task *t = pool->addTask(request_.product_name());
 
-						pool->getVendorReply(t, &reply_);
+						pool->getThreadEvent(t, &reply_);
 
 						// And we are done! Let the gRPC runtime know we've finished, using the
 						// memory address of this instance as the uniquely identifying tag for
@@ -169,18 +169,22 @@ class StoreImpl
 
 int main(int argc, char** argv)
 {
-	std::string launch_addr("0.0.0.0:50063");
+	std::string launch_addr("0.0.0.0:50053");
+	std::string filename = "vendor_addresses.txt";
 	int num_threads = 8;
 
-	if (argc == 3) {
+	if (argc == 4) {
+		launch_addr = std::string(argv[1]);
+		num_threads = atoi(argv[2]);
+		filename = std::string(argv[3]);
+	} if (argc == 3) {
 		launch_addr = std::string(argv[1]);
 		num_threads = atoi(argv[2]);
 	} else if (argc == 2) {
-		num_threads = atoi(argv[1]);
+		launch_addr = std::string(argv[1]);
 	}
 	// Read the vendor ports
 	std::vector<std::string> ip_addrresses;
-	std::string filename = "vendor_addresses.txt";
 	std::ifstream myfile(filename);
 	if(myfile.is_open()) {
 		std::string ip_addr;

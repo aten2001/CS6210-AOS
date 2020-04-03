@@ -29,19 +29,20 @@ using vendor::BidReply;
 using vendor::Vendor;
 using grpc::Status;
 
+// structure that contains variables to make asynchronous call
 struct VendorCall
 {
-	BidReply reply;
+	BidReply reply;			// memory to store reply
 	Status status;
 	ClientContext context;
 	std::unique_ptr<grpc::ClientAsyncResponseReader<BidReply>> rpc;
 };
 
+// structure to hold task input, output, id and a semaphore for events
 struct Task
 {
 	std::string query;
 	int task_id;
-	//pthread_cond_t cond;
 	sem_t sem;
 	std::vector<VendorCall *> replies;
 };
@@ -51,14 +52,10 @@ class ThreadPool {
 		int num_threads;
 		std::vector<std::pair<pthread_t, int>> workers;
 		std::vector<std::shared_ptr<Channel>> channels;
-		//std::queue<std::pair<std::string, int>> tasks;
 		std::queue<struct Task*> tasks;
-		std::vector<struct Task*> fin_tasks;
 		std::map<int, int> done;
-		pthread_mutex_t mutex;
-		pthread_cond_t cond;
-		pthread_mutex_t r_mutex;
-		pthread_cond_t r_cond;
+		pthread_mutex_t mutex;		// for tasks
+		pthread_cond_t cond;		// for tasks
 		int task_cnt;
 
 	public:
@@ -66,7 +63,7 @@ class ThreadPool {
 		~ThreadPool();
 		Task* addTask(const std::string& query);
 		void runTask(Task *t);
-		void getVendorReply(Task *t, ProductReply *reply);
+		void getThreadEvent(Task *t, ProductReply *reply);
 		void runWorker(void *);
 
 		static void* runWorkerThread(void *tp)
@@ -80,20 +77,13 @@ class VendorClient
 {
 	public:
 		VendorClient(std::shared_ptr<Channel> channel);
-		//void RequestProductBid(const std::string& product_name, BidReply *bid_reply);
+		~VendorClient();
 		void RequestProductBid(const std::string& product_name, std::vector<VendorCall *> &calls);
-		BidReply WaitForProductBidReply();
+		void WaitForProductBidReply();
 
 	private:
+		CompletionQueue cq;
 		std::unique_ptr<Vendor::Stub> clientStub;
-		// Context for the client. It could be used to convey extra information to
-		// the server and/or tweak certain RPC behaviors.
-		//ClientContext context;
 		struct VendorCall *call;
 
-		// The producer-consumer queue we use to communicate asynchronously with the
-		// gRPC runtime.
-		CompletionQueue cq;
-
 };
-
