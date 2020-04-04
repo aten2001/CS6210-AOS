@@ -17,7 +17,6 @@ class StoreImpl
 		StoreImpl(std::vector<std::string> vendors, std::string launch_addr, int num_threads) 
 			:vendors_(vendors), launch_addr_(launch_addr)
 		{
-			cout << "storeimpl constructor\n";
 			pool = new ThreadPool(num_threads, vendors);
 		}
 		~StoreImpl()
@@ -56,11 +55,6 @@ class StoreImpl
 			void* tag;  // uniquely identifies a request.
 			bool ok;
 			while (true) {
-				// Block waiting to read the next event from the completion queue. The
-				// event is uniquely identified by its tag, which in this case is the
-				// memory address of a CallData instance.
-				// The return value of Next should always be checked. This return value
-				// tells us whether there is any kind of event or cq_ is shutting down.
 				GPR_ASSERT(cq_->Next(&tag, &ok));
 				GPR_ASSERT(ok);
 				static_cast<CallData*>(tag)->Proceed();
