@@ -45,7 +45,7 @@ struct MapReduceSpec {
 inline bool read_mr_spec_from_config_file(const std::string& config_filename, MapReduceSpec& mr_spec) {
 	try{
 		std::ifstream fin;
-		fin.open(config_filename);
+		fin.open(config_filename.c_str());
 
 		while(fin){
 			std::string line;
