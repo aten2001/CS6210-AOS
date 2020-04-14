@@ -1,3 +1,22 @@
 syntax = "proto3";
 
 package masterworker;
+
+service MasterWorker{
+    rpc mapper(MapQuery) returns (File) {}
+    rpc reducer(File) returns (File) {}
+}
+
+message MapQuery{
+    repeated FileShard query = 1;
+}
+
+message File{
+    string filename = 1;
+}
+
+message FileShard{
+    string filename = 1;
+    int64 start = 2;
+    int64 end = 3; 
+}
