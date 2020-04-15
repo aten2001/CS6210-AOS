@@ -12,8 +12,8 @@ using grpc::ServerCompletionQueue;
 using grpc::ServerContext;
 using grpc::Status;
 
-using masterworker::FileShard;
 using masterworker::File;
+using masterworker::FileShard;
 using masterworker::MapQuery;
 using masterworker::MapResult;
 using masterworker::MasterWorker;
