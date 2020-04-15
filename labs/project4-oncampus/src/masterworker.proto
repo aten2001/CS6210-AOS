@@ -3,12 +3,8 @@ syntax = "proto3";
 package masterworker;
 
 service MasterWorker{
-    rpc mapper(MapQuery) returns (File) {}
-    rpc reducer(File) returns (File) {}
-}
-
-message MapQuery{
-    repeated FileShard query = 1;
+    rpc mapper(MapQuery) returns (MapResult) {}
+    rpc reducer(ReduceQuery) returns (ReduceResult) {}
 }
 
 message File{
@@ -19,4 +15,23 @@ message FileShard{
     string filename = 1;
     int64 start = 2;
     int64 end = 3; 
+}
+
+message MapQuery{
+    string user_id = 1;
+    int32 n_partitions = 2;
+    repeated FileShard shards = 3;
+}
+
+message MapResult{
+    repeated File files = 1;
+}
+
+message ReduceQuery{
+    string user_id = 1;
+    string filename = 2;
+}
+
+message ReduceResult{
+    repeated File files = 1;
 }
