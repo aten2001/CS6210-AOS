@@ -82,6 +82,7 @@ inline bool read_mr_spec_from_config_file(const std::string& config_filename, Ma
 				mr_spec.user_id = value;
 			}
 		}
+		fin.close();
 	}
 	catch(...){
 		return false;

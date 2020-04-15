@@ -38,7 +38,7 @@ inline long get_approx_split(const std::string& name, long offset, long approx_s
           }
           offset_pos = offset + res_size;
      }
-     
+     f.close();
      return res_size;
 }
 /* CS6210_TASK: Create your own data structure here, where you can hold information about file splits,
