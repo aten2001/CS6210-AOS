@@ -32,7 +32,7 @@ inline bool is_dir(const std::string& name){
 
 /* CS6210_TASK: Create your data structure here for storing spec from the config file */
 struct MapReduceSpec {
-	int n_worker;
+	int n_workers;
 	std::vector<std::string> worker_ipaddr_ports;
 	std::vector<std::string> input_files;
 	std::string output_dir;
@@ -56,7 +56,7 @@ inline bool read_mr_spec_from_config_file(const std::string& config_filename, Ma
 			std::string value = line.substr(curr + 1, std::string::npos);
 
 			if(key == "n_workers"){
-				mr_spec.n_worker = std::stoi(value);
+				mr_spec.n_workers = std::stoi(value);
 			}
 			else if(key == "worker_ipaddr_ports"){
 				// Expecting comma separated list
@@ -94,9 +94,9 @@ inline bool read_mr_spec_from_config_file(const std::string& config_filename, Ma
 /* CS6210_TASK: validate the specification read from the config file */
 inline bool validate_mr_spec(const MapReduceSpec& mr_spec) {
 
-	if(mr_spec.n_worker <= 0)
+	if(mr_spec.n_workers <= 0)
 		return false;
-	if(mr_spec.worker_ipaddr_ports.size() != mr_spec.n_worker)
+	if(mr_spec.worker_ipaddr_ports.size() != mr_spec.n_workers)
 		return false;
 	if(mr_spec.input_files.size() == 0)
 		return false;

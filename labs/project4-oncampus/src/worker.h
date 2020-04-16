@@ -13,7 +13,7 @@ using grpc::ServerContext;
 using grpc::Status;
 
 using masterworker::File;
-using masterworker::FileShard;
+using masterworker::ShardPartition;
 using masterworker::MapQuery;
 using masterworker::MapResult;
 using masterworker::MasterWorker;
@@ -242,15 +242,15 @@ MapResult MapperCallData::handle_mapper_job(const MapQuery& request){
 	base_mapper->interm_files = interm_files;
 
 	// 2. Call mapper on each shard
-	for (int i = 0; i < request.shards_size(); i++)
+	for (int i = 0; i < request.partitions_size(); i++)
 	{
-		FileShard shard = request.shards(i);
+		ShardPartition partition = request.partitions(i);
 		
 		//read the shard
 		std::ifstream f;
-		f.open(shard.filename());
-		f.seekg(shard.start());
-		int bytes_to_read = shard.end() - shard.start();
+		f.open(partition.filename());
+		f.seekg(partition.start());
+		int bytes_to_read = partition.end() - partition.start();
 		std::string result(bytes_to_read, ' ');
 		f.read(&result[0], bytes_to_read);
 		
