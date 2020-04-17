@@ -51,7 +51,7 @@ class ReduceCall : public AsyncClientCall{
 class WorkerClient
 {
 public:
-	WorkerClient(std::string ip_addr, CompletionQueue cq){
+	WorkerClient(std::string ip_addr, CompletionQueue* cq){
 		ip_addr_ = ip_addr;
 		stub_ = MasterWorker::NewStub(grpc::CreateChannel(ip_addr, grpc::InsecureChannelCredentials()));
 		cq_ = cq;
@@ -62,7 +62,7 @@ public:
 
 private:
 	std::unique_ptr<MasterWorker::Stub> stub_;
-	CompletionQueue cq_;
+	CompletionQueue* cq_;
 	std::string ip_addr_;
 };
 
@@ -80,11 +80,11 @@ void WorkerClient::schedule_mapper_job(std::string user_id, int n_partitions, Fi
 	}
 
 	auto call = new MapCall;
-	call->rpc = stub_->PrepareAsyncmapper(&call->context, query, &cq_);
+	call->rpc = stub_->PrepareAsyncmapper(&call->context, query, cq_);
 	call->is_map_job = true;
 	call->worker_ip_addr = ip_addr_;
 	call->rpc->StartCall();
-	call->rpc->Finish(&call->result, &call->status, (void*)1);
+	call->rpc->Finish(&call->result, &call->status, (void*)call);
 }
 
 class Master;
@@ -103,7 +103,7 @@ public:
 private:
 	/* NOW you can add below, data members and member functions as per the need of your implementation*/
 	// shared completion queue for all the worker clients
-	CompletionQueue cq_;
+	CompletionQueue* cq_;
 	
 	std::map<std::string, std::unique_ptr<WorkerClient>> ip_addr_to_worker;
 	std::queue<std::string> ready_queue;
@@ -118,6 +118,7 @@ private:
 	std::vector<std::string> interm_files;
 	std::vector<std::string> output_files;
 	int n_partitions;
+	bool stop;
 	void async_map_reduce();
 };
 
@@ -130,29 +131,28 @@ Master::Master(const MapReduceSpec& mr_spec, const std::vector<FileShard>& file_
 	output_dir = mr_spec.output_dir;
 	user_id = mr_spec.user_id;
 	n_partitions = mr_spec.n_output_files;
+	cq_ = new CompletionQueue;
+	stop = false;
 	// Create a thread for each worker and open a channel to make rpc calls
 	for (int i = 0; i < mr_spec.n_workers; i++){
 		auto client = std::unique_ptr<WorkerClient> (new WorkerClient (mr_spec.worker_ipaddr_ports[i], cq_));
 		ip_addr_to_worker[mr_spec.worker_ipaddr_ports[i]] = std::move(client);
 		ready_queue.push(mr_spec.worker_ipaddr_ports[i]);
-	}
-
+		}
 }
 
 
 /* CS6210_TASK: Here you go. once this function is called you will complete whole map reduce task and return true if succeeded */
 bool Master::run() {
 
-	
 	// Schedule map jobs
 	std::thread schedule_map_jobs(&Master::async_map_reduce, this);
 	for (int i = 0; i < shards.size(); i++){
 		FileShard shard = shards[i];
-		do{
+		{
 			// check if we have a free worker
 			std::unique_lock<std::mutex> lk(m);
 			cv.wait(lk, [this] { return !ready_queue.empty(); });
-
 			// great we the mutex and atleast one free worker
 			std::string worker_ip = ready_queue.front();
 			ready_queue.pop();
@@ -161,33 +161,36 @@ bool Master::run() {
 			cv.notify_one();
 			auto client = ip_addr_to_worker[(worker_ip)].get();
 			client->schedule_mapper_job(user_id, n_partitions, shard);
-		} while (1);
+		}
 	}
-
+	// stop all the workers
 	schedule_map_jobs.join();
-
+	std::cout << "Map job done" << std::endl;
+	//std::cout << interm_files.size() << std::endl;
+	
 	//Schedule reduce jobs
-
+	
+	
 	return true;
 }
 
 void Master::async_map_reduce(){
 	    void* got_tag;
         bool ok = false;
-
-        while (cq_.Next(&got_tag, &ok)) {
-       
-	        AsyncClientCall* call = static_cast<AsyncClientCall*>(got_tag);
-
+	
+        while (cq_->Next(&got_tag, &ok)) {
+			AsyncClientCall* call = static_cast<AsyncClientCall*>(got_tag);
+			
             GPR_ASSERT(ok);
-
-            if (call->status.ok()){
+			if (call->status.ok())
+			{
 				// restore the worker back to the ready queue
 				// and make it free
 				{
 					std::lock_guard<std::mutex> lk(m);
 					ready_queue.push(call->worker_ip_addr);
 					busy_workers.erase(call->worker_ip_addr);
+					cv.notify_one();
 				}
 				// based on the job kind, store the result
 				if(call->is_map_job){
@@ -202,8 +205,10 @@ void Master::async_map_reduce(){
 						output_files.push_back(rcall->result.files(i).filename());
 				}
 			}
-            // Once we're complete, deallocate the call object.
+			// Once we're complete, deallocate the call object.
             delete call;
-        }
-    
+			// check if we have received all the required messages
+			if(n_partitions * shards.size() == interm_files.size())
+				return;
+		}
 }

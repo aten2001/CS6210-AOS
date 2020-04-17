@@ -62,9 +62,10 @@ public:
 
 				// Process mapper job
 				reply_ = handle_mapper_job(request_);
-
+				
 				status_ = FINISH;
 				responder_.Finish(reply_, Status::OK, this);
+				// std::cout << "result: " << reply_.files(0).filename() << std::endl;
 
 			} else {
 				GPR_ASSERT(status_ == FINISH);
@@ -260,11 +261,11 @@ MapResult MapperCallData::handle_mapper_job(const MapQuery& request){
 		while (getline(ss, line)){			
 			user_mapper->map(line);
 		}
+		f.close();
 	}
 
 	// 3.flush the key value pairs to intermediate files
 	base_mapper->flush();
-
 	// 4. Prepare result
 	for(int i = 0; i < request.n_partitions(); i++){
 		File* file = result.add_files();

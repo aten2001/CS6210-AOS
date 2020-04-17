@@ -52,7 +52,7 @@ struct FileShard {
 inline bool shard_files(const MapReduceSpec& mr_spec, std::vector<FileShard>& fileShards) {
      auto input_files = mr_spec.input_files;
      long shard_size = mr_spec.map_kilobytes;
-
+   //  std::cout << "Creating shrads" << std::endl;
      FileShard curr_shard;
      // What portion of shard is still to be filled
      long rem_shard_size = shard_size;
@@ -83,5 +83,6 @@ inline bool shard_files(const MapReduceSpec& mr_spec, std::vector<FileShard>& fi
                }
           }
      }
+   //  std::cout << "Shards done" << std::endl;
      return true;
 }

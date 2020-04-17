@@ -12,9 +12,10 @@ inline void split_string_to_string_list(const std::string& input, std::vector<st
 	int curr = input.find_first_of(',');
 	while (curr != std::string::npos){
 		res.push_back(input.substr(last, curr - last));
-		last = curr++;
+		last = curr + 1;
 		curr = input.find_first_of(',', last);
 	}
+	res.push_back(input.substr(last, curr - last));
 }
 
 inline bool file_exists (const std::string& name) {
@@ -24,8 +25,8 @@ inline bool file_exists (const std::string& name) {
 
 inline bool is_dir(const std::string& name){
 	struct stat st;
-	if(stat(name.c_str(), &st) != 0)
-		if(st.st_mode & S_IFDIR !=0)
+	if(stat(name.c_str(), &st) == 0)
+		if(st.st_mode & S_IFDIR )
 			return true;
 	return false;
 }
@@ -44,12 +45,10 @@ struct MapReduceSpec {
 /* CS6210_TASK: Populate MapReduceSpec data structure with the specification from the config file */
 inline bool read_mr_spec_from_config_file(const std::string& config_filename, MapReduceSpec& mr_spec) {
 	try{
-		std::ifstream fin;
-		fin.open(config_filename.c_str());
-
-		while(fin){
-			std::string line;
-			getline(fin, line);
+		std::ifstream fin(config_filename.c_str());
+		std::string line;
+		while (getline(fin, line))
+		{
 			// Split line to extract the config
 			int curr = line.find_first_of('=');
 			std::string key = line.substr(0, curr);
@@ -87,6 +86,7 @@ inline bool read_mr_spec_from_config_file(const std::string& config_filename, Ma
 	catch(...){
 		return false;
 	}
+		
 	return true;
 }
 
@@ -103,6 +103,7 @@ inline bool validate_mr_spec(const MapReduceSpec& mr_spec) {
 	for(auto f:mr_spec.input_files)
 		if (file_exists(f) == 0)
 			return false;
+		
 	if (mr_spec.output_dir.empty() || !is_dir(mr_spec.output_dir))
 		return false;
 	if(mr_spec.n_output_files <= 0 || mr_spec.map_kilobytes <= 0)
