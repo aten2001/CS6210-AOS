@@ -29,9 +29,11 @@ message MapResult{
 
 message ReduceQuery{
     string user_id = 1;
-    string filename = 2;
+    repeated File files = 2;
+    int32 partition_id = 3;
+    string output_dir = 4;
 }
 
 message ReduceResult{
-    repeated File files = 1;
+    File file = 1;
 }

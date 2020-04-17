@@ -239,7 +239,7 @@ MapResult MapperCallData::handle_mapper_job(const MapQuery& request){
 	// The intermediate files for each partition
 	std::vector<std::string> interm_files;
 	for (int i = 0; i < request.n_partitions(); i++)
-		interm_files.push_back(worker_ip_addr_ + "_intermediate_" + std::to_string(i) + ".txt");
+		interm_files.push_back("intermediate/" + std::to_string(i) + "_" + worker_ip_addr_  + ".txt");
 	base_mapper->interm_files = interm_files;
 
 	// 2. Call mapper on each shard
@@ -248,8 +248,7 @@ MapResult MapperCallData::handle_mapper_job(const MapQuery& request){
 		ShardPartition partition = request.partitions(i);
 		
 		//read the shard
-		std::ifstream f;
-		f.open(partition.filename());
+		std::ifstream f(partition.filename());
 		f.seekg(partition.start());
 		int bytes_to_read = partition.end() - partition.start();
 		std::string result(bytes_to_read, ' ');
@@ -284,5 +283,38 @@ BaseReducerInternal* ReducerCallData::get_base_reducer_internal(BaseReducer* map
 ReduceResult ReducerCallData::handle_reducer_job(const ReduceQuery& query){
 	ReduceResult result;
 	// handle reducer job
+	auto user_reducer = get_reducer_from_task_factory(query.user_id());
+
+	/*Reducer implementation*/
+	// 1. Setup the internal reducer
+	auto base_reducer = get_base_reducer_internal(user_reducer.get());
+	std::string output_file = query.output_dir() + "/" + std::to_string(query.partition_id());
+	std::vector<std::string> files;
+	base_reducer->filename = output_file;
+	
+	// 2. Call user reducer on this file
+	std::map<std::string, std::vector<std::string> > kvs;
+	for (int i = 0; i < query.files_size(); i++){
+		std::ifstream f(query.files(i).filename());
+		if(f){
+			std::string line;
+			while(getline(f, line)){
+				int pos = line.find_first_of(',');
+				std::string key = line.substr(0, pos);
+				std::string value = line.substr(pos + 2);
+				if (kvs.find(key) == kvs.end())
+					kvs[key] = std::vector<std::string>();
+				kvs[key].push_back(value);
+			}
+		}	
+	}
+	std::cout << kvs.size() << std::endl;
+	for(auto const& kv:kvs){
+		
+		user_reducer->reduce(kv.first, kv.second);
+	}
+	// 3. write to a output file
+	File* file = result.mutable_file();
+	file->set_filename(output_file);
 	return result;
 }

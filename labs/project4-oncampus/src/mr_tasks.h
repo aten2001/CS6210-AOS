@@ -25,7 +25,7 @@ struct BaseMapperInternal {
 
 /* CS6210_TASK Implement this function */
 inline BaseMapperInternal::BaseMapperInternal() {
-	// kvs.erase();
+	
 }
 
 /* CS6210_TASK Implement this function */
@@ -65,8 +65,8 @@ struct BaseReducerInternal {
 		void emit(const std::string& key, const std::string& val);
 
 		/* NOW you can add below, data members and member functions as per the need of your implementation*/
+		std::string filename;
 };
-
 
 /* CS6210_TASK Implement this function */
 inline BaseReducerInternal::BaseReducerInternal() {
@@ -76,5 +76,7 @@ inline BaseReducerInternal::BaseReducerInternal() {
 
 /* CS6210_TASK Implement this function */
 inline void BaseReducerInternal::emit(const std::string& key, const std::string& val) {
-	std::cout << "Dummy emit by BaseReducerInternal: " << key << ", " << val << std::endl;
+	std::ofstream f(filename, std::ios::out | std::ios::app);
+	f << key << " " << val << std::endl;
+	f.close();
 }

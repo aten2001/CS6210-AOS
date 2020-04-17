@@ -25,7 +25,7 @@ inline long get_approx_split(const std::string& name, long offset, long approx_s
      bool found = false;
      long offset_pos = offset + approx_size;
      
-     while (f.eof() || found){
+     while (!f.eof() || !found){
           char buffer[50];
           f.seekg(offset_pos);
           f.read(buffer, sizeof(buffer));
@@ -83,6 +83,6 @@ inline bool shard_files(const MapReduceSpec& mr_spec, std::vector<FileShard>& fi
                }
           }
      }
-   //  std::cout << "Shards done" << std::endl;
+     std::cout << "Shards:  " <<  fileShards.size() << std::endl;
      return true;
 }

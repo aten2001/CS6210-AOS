@@ -9,6 +9,7 @@
 #include <map>
 #include <vector>
 #include <memory>
+#include <sys/stat.h>
 
 #include <grpcpp/grpcpp.h>
 #include "masterworker.grpc.pb.h"
@@ -57,8 +58,8 @@ public:
 		cq_ = cq;
 	}
 
-	void schedule_mapper_job(std::string user_id, int n_partitions, FileShard shard);
-	void schedule_reducer_job();
+	void schedule_mapper_job(std::string, int, FileShard);
+	void schedule_reducer_job(std::string, int, std::string, std::vector<std::string>);
 
 private:
 	std::unique_ptr<MasterWorker::Stub> stub_;
@@ -87,6 +88,23 @@ void WorkerClient::schedule_mapper_job(std::string user_id, int n_partitions, Fi
 	call->rpc->Finish(&call->result, &call->status, (void*)call);
 }
 
+void WorkerClient::schedule_reducer_job(std::string user_id, int partition_id, std::string output_dir, std::vector<std::string> files){
+	ReduceQuery query;
+	query.set_user_id(user_id);
+	query.set_partition_id(partition_id);
+	query.set_output_dir(output_dir);
+	for (int i = 0; i < files.size(); i++){
+		File *file = query.add_files();
+		file->set_filename(files[i]);
+	}
+
+	auto call = new ReduceCall;
+	call->rpc = stub_->PrepareAsyncreducer(&call->context, query, cq_);
+	call->is_map_job = false;
+	call->worker_ip_addr = ip_addr_;
+	call->rpc->StartCall();
+	call->rpc->Finish(&call->result, &call->status, (void*)call);
+}
 class Master;
 /* CS6210_TASK: Handle all the bookkeeping that Master is supposed to do.
 	This is probably the biggest task for this project, will test your understanding of map reduce */
@@ -118,7 +136,7 @@ private:
 	std::vector<std::string> interm_files;
 	std::vector<std::string> output_files;
 	int n_partitions;
-	bool stop;
+	bool map_complete;
 	void async_map_reduce();
 };
 
@@ -132,13 +150,13 @@ Master::Master(const MapReduceSpec& mr_spec, const std::vector<FileShard>& file_
 	user_id = mr_spec.user_id;
 	n_partitions = mr_spec.n_output_files;
 	cq_ = new CompletionQueue;
-	stop = false;
+	map_complete = false;
 	// Create a thread for each worker and open a channel to make rpc calls
 	for (int i = 0; i < mr_spec.n_workers; i++){
 		auto client = std::unique_ptr<WorkerClient> (new WorkerClient (mr_spec.worker_ipaddr_ports[i], cq_));
 		ip_addr_to_worker[mr_spec.worker_ipaddr_ports[i]] = std::move(client);
 		ready_queue.push(mr_spec.worker_ipaddr_ports[i]);
-		}
+	}
 }
 
 
@@ -147,6 +165,7 @@ bool Master::run() {
 
 	// Schedule map jobs
 	std::thread schedule_map_jobs(&Master::async_map_reduce, this);
+	mkdir("intermediate", 0777);
 	for (int i = 0; i < shards.size(); i++){
 		FileShard shard = shards[i];
 		{
@@ -165,11 +184,42 @@ bool Master::run() {
 	}
 	// stop all the workers
 	schedule_map_jobs.join();
-	std::cout << "Map job done" << std::endl;
-	//std::cout << interm_files.size() << std::endl;
-	
+	//std::cout << "Map job done" << std::endl;
+	map_complete = true;
 	//Schedule reduce jobs
+	std::thread schedule_reduce_jobs(&Master::async_map_reduce, this);
+	std::unordered_map<int, std::vector<std::string>> files_to_reduce;
+	for (auto file : interm_files){
+		// intermediate/1_localhost:50001.txt
+		int pos = file.find_first_of('/') + 1;
+		int end = file.find_first_of('_');
+		int idx = std::stoi(file.substr(pos, end-pos));
+		if(files_to_reduce.find(idx) == files_to_reduce.end())
+			files_to_reduce[idx] = std::vector<std::string>();
+		files_to_reduce[idx].push_back(file);
+	}
 	
+	for (int i = 0; i < n_partitions;i++){
+		// check if we have a free worker
+		std::unique_lock<std::mutex> lk(m);
+		cv.wait(lk, [this] { return !ready_queue.empty(); });
+		// great we the mutex and atleast one free worker
+		std::string worker_ip = ready_queue.front();
+		ready_queue.pop();
+		busy_workers[worker_ip] = i;
+		lk.unlock();
+		cv.notify_one();
+		auto client = ip_addr_to_worker[(worker_ip)].get();
+		auto files = files_to_reduce[i];
+		client->schedule_reducer_job(user_id, i, output_dir, files);
+	}
+	
+	// stop all the workers
+	schedule_reduce_jobs.join();
+
+	// remove all the intermediate files
+	// for(auto file:interm_files)
+	// 	std::remove(file.c_str());
 	
 	return true;
 }
@@ -201,14 +251,18 @@ void Master::async_map_reduce(){
 				}
 				else{
 					ReduceCall* rcall = dynamic_cast<ReduceCall*>(call);
-					for (int i = 0; i < rcall->result.files_size(); i++)
-						output_files.push_back(rcall->result.files(i).filename());
+					output_files.push_back(rcall->result.file().filename());
 				}
 			}
 			// Once we're complete, deallocate the call object.
             delete call;
-			// check if we have received all the required messages
-			if(n_partitions * shards.size() == interm_files.size())
+			// check if we have received all the required map messages
+			// Note in case we are in reduce job this condition is no longer valid
+			// So check for map_complete before that
+			if(!map_complete && n_partitions * shards.size() == interm_files.size())
+				return;
+			// in reduce and we have received all the files
+			if(map_complete && output_files.size() == n_partitions)
 				return;
 		}
 }
