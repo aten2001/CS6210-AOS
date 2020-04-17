@@ -219,8 +219,8 @@ bool Master::run() {
 	schedule_reduce_jobs.join();
 
 	// remove all the intermediate files
-	// for(auto file:interm_files)
-	// 	std::remove(file.c_str());
+	for(auto file:interm_files)
+		std::remove(file.c_str());
 	
 	return true;
 }
