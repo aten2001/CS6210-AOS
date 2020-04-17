@@ -35,6 +35,7 @@ inline void BaseMapperInternal::emit(const std::string& key, const std::string& 
 		flush();
 	}
 	kvs.push_back({key, val});
+	flush();
 }
 
 inline void BaseMapperInternal::flush(){

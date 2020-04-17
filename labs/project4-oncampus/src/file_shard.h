@@ -25,7 +25,7 @@ inline long get_approx_split(const std::string& name, long offset, long approx_s
      bool found = false;
      long offset_pos = offset + approx_size;
      
-     while (!f.eof() || !found){
+     while (!f.eof() && !found){
           char buffer[50];
           f.seekg(offset_pos);
           f.read(buffer, sizeof(buffer));
@@ -51,13 +51,15 @@ struct FileShard {
 /* CS6210_TASK: Create fileshards from the list of input files, map_kilobytes etc. using mr_spec you populated  */ 
 inline bool shard_files(const MapReduceSpec& mr_spec, std::vector<FileShard>& fileShards) {
      auto input_files = mr_spec.input_files;
-     long shard_size = mr_spec.map_kilobytes;
+     long shard_size = mr_spec.map_kilobytes * 1024;
+  //   std::cout << shard_size << std::endl;
    //  std::cout << "Creating shrads" << std::endl;
      FileShard curr_shard;
      // What portion of shard is still to be filled
      long rem_shard_size = shard_size;
      for (auto file : input_files){
           long f_size = get_file_size(file);
+       //   std::cout << f_size << std::endl;
           long rem_f_size = f_size;
           long f_offset = 0;
           while (rem_f_size > 0){
@@ -83,6 +85,15 @@ inline bool shard_files(const MapReduceSpec& mr_spec, std::vector<FileShard>& fi
                }
           }
      }
-     std::cout << "Shards:  " <<  fileShards.size() << std::endl;
+     if(curr_shard.file_names.size())
+          fileShards.push_back(curr_shard);
+     // std::cout << "Shards:  " << fileShards.size() << std::endl;
+     // for(auto shard : fileShards){
+     //      for (int i = 0; i < shard.file_names.size(); i++){
+     //           std::cout << shard.file_names[i] << std::endl;
+     //           std::cout << shard.offsets[i].first << std::endl;
+     //           std::cout << shard.offsets[i].second << std::endl;
+     //           }
+     // }
      return true;
 }

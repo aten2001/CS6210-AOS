@@ -8,6 +8,7 @@
 #include <condition_variable>
 #include <map>
 #include <vector>
+#include <set>
 #include <memory>
 #include <sys/stat.h>
 
@@ -133,7 +134,7 @@ private:
 	std::mutex m;
 	std::condition_variable cv;
 	std::string user_id;
-	std::vector<std::string> interm_files;
+	std::set<std::string> interm_files;
 	std::vector<std::string> output_files;
 	int n_partitions;
 	bool map_complete;
@@ -227,8 +228,9 @@ bool Master::run() {
 void Master::async_map_reduce(){
 	    void* got_tag;
         bool ok = false;
-	
-        while (cq_->Next(&got_tag, &ok)) {
+		int n_mapper_messages = 0;
+		while (cq_->Next(&got_tag, &ok))
+		{
 			AsyncClientCall* call = static_cast<AsyncClientCall*>(got_tag);
 			
             GPR_ASSERT(ok);
@@ -244,10 +246,11 @@ void Master::async_map_reduce(){
 				}
 				// based on the job kind, store the result
 				if(call->is_map_job){
-					MapCall* mcall = dynamic_cast<MapCall*>(call);
+					n_mapper_messages++;
+					MapCall *mcall = dynamic_cast<MapCall *>(call);
 					// no need for the lock, since we won't access this in master until we are done with all map jobs
 					for (int i = 0; i < mcall->result.files_size(); i++)
-						interm_files.push_back(mcall->result.files(i).filename());
+						interm_files.insert(mcall->result.files(i).filename());
 				}
 				else{
 					ReduceCall* rcall = dynamic_cast<ReduceCall*>(call);
@@ -259,7 +262,7 @@ void Master::async_map_reduce(){
 			// check if we have received all the required map messages
 			// Note in case we are in reduce job this condition is no longer valid
 			// So check for map_complete before that
-			if(!map_complete && n_partitions * shards.size() == interm_files.size())
+			if(!map_complete && n_partitions * shards.size() == n_mapper_messages)
 				return;
 			// in reduce and we have received all the files
 			if(map_complete && output_files.size() == n_partitions)
