@@ -11,6 +11,7 @@
 #include <set>
 #include <memory>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #include <grpcpp/grpcpp.h>
 #include "masterworker.grpc.pb.h"
@@ -221,6 +222,7 @@ bool Master::run() {
 	// remove all the intermediate files
 	for(auto file:interm_files)
 		std::remove(file.c_str());
+	rmdir("intermediate");
 	
 	return true;
 }
@@ -262,7 +264,7 @@ void Master::async_map_reduce(){
 			// check if we have received all the required map messages
 			// Note in case we are in reduce job this condition is no longer valid
 			// So check for map_complete before that
-			if(!map_complete && n_partitions * shards.size() == n_mapper_messages)
+			if(!map_complete && shards.size() == n_mapper_messages)
 				return;
 			// in reduce and we have received all the files
 			if(map_complete && output_files.size() == n_partitions)

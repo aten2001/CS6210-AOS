@@ -210,8 +210,10 @@ bool Worker::run() {
 }
 
 bool Worker::handle_rpcs(){
-	new MapperCallData(&service_, cq_.get(), ip_addr_port_);
-	new ReducerCallData(&service_, cq_.get(), ip_addr_port_);
+	std::string ip_addr_num_ = ip_addr_port_.substr(ip_addr_port_.find(":") + 1);
+	std::cout << ip_addr_port_ << " " << ip_addr_num_ << "\n";
+	new MapperCallData(&service_, cq_.get(), ip_addr_num_);
+	new ReducerCallData(&service_, cq_.get(), ip_addr_num_);
 
 	void* tag;  // uniquely identifies a request.
     bool ok;
@@ -238,6 +240,7 @@ MapResult MapperCallData::handle_mapper_job(const MapQuery& request){
 	base_mapper->n_partitions = request.n_partitions();
 	// The intermediate files for each partition
 	std::vector<std::string> interm_files;
+	// Name for intermediate files
 	for (int i = 0; i < request.n_partitions(); i++)
 		interm_files.push_back("intermediate/" + std::to_string(i) + "_" + worker_ip_addr_  + ".txt");
 	base_mapper->interm_files = interm_files;
