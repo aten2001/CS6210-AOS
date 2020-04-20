@@ -29,6 +29,8 @@ using masterworker::MapResult;
 using masterworker::MasterWorker;
 using masterworker::ReduceQuery;
 using masterworker::ReduceResult;
+using masterworker::HeartbeatQuery;
+using masterworker::HeartbeatResult;
 
 
 class AsyncClientCall{
@@ -51,6 +53,12 @@ class ReduceCall : public AsyncClientCall{
 		std::unique_ptr<ClientAsyncResponseReader<ReduceResult>> rpc;
 };
 
+class HeartbeatCall : public AsyncClientCall{
+	public:
+		HeartbeatResult result;
+		std::unique_ptr<ClientAsyncResponseReader<HeartbeatResult>> rpc;
+};
+
 class WorkerClient
 {
 public:
@@ -62,6 +70,7 @@ public:
 
 	void schedule_mapper_job(std::string, int, FileShard);
 	void schedule_reducer_job(std::string, int, std::string, std::vector<std::string>);
+	void send_heartbeat_msg(std::string, CompletionQueue *);
 
 private:
 	std::unique_ptr<MasterWorker::Stub> stub_;
@@ -126,6 +135,7 @@ private:
 	CompletionQueue* cq_;
 	
 	std::map<std::string, std::unique_ptr<WorkerClient>> ip_addr_to_worker;
+	std::vector<std::string> worker_ips;
 	std::queue<std::string> ready_queue;
 	// ip->shard_index or ip->interm_file_index
 	std::map<std::string, int> busy_workers;
@@ -140,6 +150,7 @@ private:
 	int n_partitions;
 	bool map_complete;
 	void async_map_reduce();
+	void heartbeat();
 };
 
 /* CS6210_TASK: This is all the information your master will get from the framework.
@@ -158,12 +169,15 @@ Master::Master(const MapReduceSpec& mr_spec, const std::vector<FileShard>& file_
 		auto client = std::unique_ptr<WorkerClient> (new WorkerClient (mr_spec.worker_ipaddr_ports[i], cq_));
 		ip_addr_to_worker[mr_spec.worker_ipaddr_ports[i]] = std::move(client);
 		ready_queue.push(mr_spec.worker_ipaddr_ports[i]);
+		worker_ips.push_back(mr_spec.worker_ipaddr_ports[i]);
 	}
 }
 
 
 /* CS6210_TASK: Here you go. once this function is called you will complete whole map reduce task and return true if succeeded */
 bool Master::run() {
+	// Schedule heartbeat thread
+	std::thread heartbeat_job(&Master::heartbeat, this);
 
 	// Schedule map jobs
 	std::thread schedule_map_jobs(&Master::async_map_reduce, this);
@@ -219,6 +233,9 @@ bool Master::run() {
 	// stop all the workers
 	schedule_reduce_jobs.join();
 
+	// wait for heartbeat thread to exit cleanly
+	heartbeat_job.join();
+
 	// remove all the intermediate files
 	for(auto file:interm_files)
 		std::remove(file.c_str());
@@ -270,4 +287,71 @@ void Master::async_map_reduce(){
 			if(map_complete && output_files.size() == n_partitions)
 				return;
 		}
+}
+
+void WorkerClient::send_heartbeat_msg(std::string worker_port, CompletionQueue *cq2_)
+{
+	std::cout << "sending heartbeat message to " << worker_port << "\n";
+
+	HeartbeatQuery query;
+	query.set_id(worker_port);
+
+	auto call = new HeartbeatCall;
+	call->rpc = stub_->PrepareAsyncheartbeat(&call->context, query, cq2_);
+	call->worker_ip_addr = worker_port;
+	call->is_map_job = false;
+	call->rpc->StartCall();
+	call->rpc->Finish(&call->result, &call->status, (void*)call);
+}
+
+
+std::string recv_heartbeat_msg(std::string in, CompletionQueue *cq2_)
+{
+	void* got_tag;
+	bool ok = false;
+
+	GPR_ASSERT(cq2_->Next(&got_tag, &ok));
+	GPR_ASSERT(ok);
+
+	HeartbeatCall* call = static_cast<HeartbeatCall*>(got_tag);
+	std::string ret = call->result.id();
+	std::cout << "Received message from " << ret << "\n";
+
+	delete call;
+	return ret;
+}
+
+void Master::heartbeat() {
+	// async wait for responses and check worker id
+	// if all workers responded sleep for heartbeat interval
+	// if one or many workers did not respond with "heartbeat interval",
+	// signal who and figure out the rest
+	//
+	int n = 0;
+	CompletionQueue cq2_;
+
+	while (n++ < 3) {
+		std::map<std::string, bool> msg_rcvd;
+		// iterate over workers
+		// async send message to each worker
+		for (int i = 0; i < n_workers; i++) {
+			auto client = ip_addr_to_worker[worker_ips[i]].get();
+			client->send_heartbeat_msg(worker_ips[i], &cq2_);
+			msg_rcvd[worker_ips[i]] = false;
+		}
+
+		// iterate over workers
+		// async wait for responses and check worker id
+		for (int i = 0; i < n_workers; i++) {
+			auto client = ip_addr_to_worker[worker_ips[i]].get();
+			std::string recv_worker_ip = recv_heartbeat_msg(worker_ips[i], &cq2_);
+			msg_rcvd[recv_worker_ip] = true;
+		}
+		std::cout << "Heartbeat thread sleeping " << n << "\n";
+		sleep(1);
+		std::cout << "Heartbeat thread waking up " << n << "\n";
+	}
+
+
+
 }

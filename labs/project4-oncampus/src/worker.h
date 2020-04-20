@@ -4,6 +4,7 @@
 #include "mr_tasks.h"
 #include <grpcpp/grpcpp.h>
 #include "masterworker.grpc.pb.h"
+#include <thread>
 
 using grpc::Server;
 using grpc::ServerAsyncResponseWriter;
@@ -19,6 +20,8 @@ using masterworker::MapResult;
 using masterworker::MasterWorker;
 using masterworker::ReduceQuery;
 using masterworker::ReduceResult;
+using masterworker::HeartbeatQuery;
+using masterworker::HeartbeatResult;
 
 extern std::shared_ptr<BaseMapper> get_mapper_from_task_factory(const std::string &user_id);
 extern std::shared_ptr<BaseReducer> get_reducer_from_task_factory(const std::string& user_id);
@@ -140,16 +143,54 @@ public:
 		CallStatus status_; 
 };
 
+class HeartbeatCallData final : public CallData{
+public:
+		HeartbeatCallData(MasterWorker::AsyncService* service, ServerCompletionQueue* cq, std::string ip_addr)
+			: service_(service), cq_(cq), responder_(&ctx_), status_(CREATE), worker_ip_addr_(ip_addr)
+		{
+			// Invoke the serving logic right away.
+			Proceed();
+		}
 
-// class ReducerServiceImpl final : public MasterWorker::Service{
-	
-// 	Status reducer(ServerContext* context, const ReduceQuery* request, File* reply){
-// 		// reducer implementation
-// 		auto reducer = get_reducer_from_task_factory(request->user_id());
-// 		reducer->reduce("dummy", std::vector<std::string>({"1", "1"}));
-// 		return Status::OK;
-// 	}
-// };
+		void Proceed()
+		{
+			if (status_ == CREATE) {
+				// Make this instance progress to the PROCESS state.
+				status_ = PROCESS;
+
+				service_->Requestheartbeat(&ctx_, &request_, &responder_, cq_, cq_, this);
+
+			} else if (status_ == PROCESS) {
+
+				new HeartbeatCallData(service_, cq_, worker_ip_addr_);
+
+				// Process heartbeat message
+				reply_.set_id(worker_ip_addr_);
+
+				status_ = FINISH;
+				responder_.Finish(reply_, Status::OK, this);
+
+			} else {
+				GPR_ASSERT(status_ == FINISH);
+				delete this;
+			}
+		}
+
+
+	private:
+		HeartbeatResult handle_heartbeat_job(const HeartbeatQuery&);
+
+		std::string worker_ip_addr_;
+		MasterWorker::AsyncService* service_;
+		ServerCompletionQueue* cq_;
+		ServerContext ctx_;
+		HeartbeatQuery request_;
+		HeartbeatResult reply_;
+		ServerAsyncResponseWriter<HeartbeatResult> responder_;
+		enum CallStatus { CREATE, PROCESS, FINISH };
+		CallStatus status_;
+};
+
 
 /* CS6210_TASK: Handle all the task a Worker is supposed to do.
 	This is a big task for this project, will test your understanding of map reduce */
@@ -175,9 +216,11 @@ class Worker {
 	private:
 		/* NOW you can add below, data members and member functions as per the need of your implementation*/
 		bool handle_rpcs();
+		void heartbeat();
 
 		std::string ip_addr_port_;
 		std::unique_ptr<ServerCompletionQueue> cq_;
+		std::unique_ptr<ServerCompletionQueue> cq2_;
   		MasterWorker::AsyncService service_;
   		std::unique_ptr<Server> server_;
 };
@@ -202,11 +245,28 @@ bool Worker::run() {
 	builder.RegisterService(&service_);
 	
 	cq_ = builder.AddCompletionQueue();
+	cq2_ = builder.AddCompletionQueue();
 	server_ = builder.BuildAndStart();
+
+	std::thread heartbeat_job(&Worker::heartbeat, this);
 
 	handle_rpcs();
 	
 	return true;
+}
+
+void Worker::heartbeat() {
+
+	void* tag;  // uniquely identifies a request.
+	bool ok;
+
+	new HeartbeatCallData(&service_, cq2_.get(), ip_addr_port_);
+
+	while(true) {
+		GPR_ASSERT(cq2_->Next(&tag, &ok));
+		GPR_ASSERT(ok);
+		static_cast<CallData*>(tag)->Proceed();
+	}
 }
 
 bool Worker::handle_rpcs(){
@@ -216,11 +276,11 @@ bool Worker::handle_rpcs(){
 	new ReducerCallData(&service_, cq_.get(), ip_addr_num_);
 
 	void* tag;  // uniquely identifies a request.
-    bool ok;
-    while (true) {
-	  GPR_ASSERT(cq_->Next(&tag, &ok));
-      GPR_ASSERT(ok);
-      static_cast<CallData*>(tag)->Proceed();
+	bool ok;
+	while (true) {
+		GPR_ASSERT(cq_->Next(&tag, &ok));
+		GPR_ASSERT(ok);
+		static_cast<CallData*>(tag)->Proceed();
 	}
 }
 

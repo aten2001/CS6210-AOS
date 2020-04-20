@@ -5,6 +5,7 @@ package masterworker;
 service MasterWorker{
     rpc mapper(MapQuery) returns (MapResult) {}
     rpc reducer(ReduceQuery) returns (ReduceResult) {}
+    rpc heartbeat(HeartbeatQuery) returns (HeartbeatResult) {}
 }
 
 message File{
@@ -36,4 +37,12 @@ message ReduceQuery{
 
 message ReduceResult{
     File file = 1;
+}
+
+message HeartbeatQuery {
+	string id = 1;
+}
+
+message HeartbeatResult {
+	string id = 1;
 }
