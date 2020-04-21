@@ -162,7 +162,10 @@ public:
 
 			} else if (status_ == PROCESS) {
 
-				new HeartbeatCallData(service_, cq_, worker_ip_addr_);
+				if (strcmp(worker_ip_addr_.c_str(), "localhost:50051") == 0)
+					std::cout << worker_ip_addr_ << " : heartbeat disabled from now\n";
+				else
+					new HeartbeatCallData(service_, cq_, worker_ip_addr_);
 
 				// Process heartbeat message
 				reply_.set_id(worker_ip_addr_);
@@ -260,6 +263,11 @@ void Worker::heartbeat() {
 	void* tag;  // uniquely identifies a request.
 	bool ok;
 
+	/*if (strcmp(ip_addr_port_.c_str(), "localhost:50051") == 0) {
+		std::cout << ip_addr_port_ << " : heartbeat disabled\n";
+		return;
+	}*/
+
 	new HeartbeatCallData(&service_, cq2_.get(), ip_addr_port_);
 
 	while(true) {
@@ -279,7 +287,8 @@ bool Worker::handle_rpcs(){
 	bool ok;
 	while (true) {
 		GPR_ASSERT(cq_->Next(&tag, &ok));
-		GPR_ASSERT(ok);
+		//GPR_ASSERT(ok);
+		if (!ok) std::cout << "recv error: " << ok << " for worker " << ip_addr_port_ << "\n";
 		static_cast<CallData*>(tag)->Proceed();
 	}
 }
