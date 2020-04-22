@@ -58,10 +58,12 @@ public:
 				status_ = PROCESS;
 
 				service_->Requestmapper(&ctx_, &request_, &responder_, cq_, cq_, this);
+				printf("Waiting on message\n");
 
 			} else if (status_ == PROCESS) {
 				
 				new MapperCallData(service_, cq_, worker_ip_addr_);
+
 
 				// Process mapper job
 				reply_ = handle_mapper_job(request_);
@@ -70,7 +72,9 @@ public:
 				responder_.Finish(reply_, Status::OK, this);
 				// std::cout << "result: " << reply_.files(0).filename() << std::endl;
 
+				printf("Handled map message\n");
 			} else {
+				printf("Map delviered\n");
 				GPR_ASSERT(status_ == FINISH);
 				delete this;
 			}
@@ -263,10 +267,10 @@ void Worker::heartbeat() {
 	void* tag;  // uniquely identifies a request.
 	bool ok;
 
-	/*if (strcmp(ip_addr_port_.c_str(), "localhost:50051") == 0) {
+	if (strcmp(ip_addr_port_.c_str(), "localhost:50051") == 0) {
 		std::cout << ip_addr_port_ << " : heartbeat disabled\n";
 		return;
-	}*/
+	}
 
 	new HeartbeatCallData(&service_, cq2_.get(), ip_addr_port_);
 
