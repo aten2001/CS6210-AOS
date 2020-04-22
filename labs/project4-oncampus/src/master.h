@@ -116,7 +116,7 @@ void WorkerClient::schedule_mapper_job(std::string user_id, int n_partitions, Fi
 		call->rpc->StartCall();
 		call->rpc->Finish(&call->result, &call->status, (void*)call);
 	}
-	std::cout << __func__ << ": scheduled shard to " << ip_addr_  << " msg id : " << call->id << "\n";
+	std::cout << __func__ << ": scheduled shard to " << ip_addr_  << "\n";
 }
 
 void WorkerClient::schedule_reducer_job(std::string user_id, int partition_id, std::string output_dir, std::vector<std::string> files){
@@ -144,7 +144,7 @@ void WorkerClient::schedule_reducer_job(std::string user_id, int partition_id, s
 		call->rpc->Finish(&call->result, &call->status, (void*)call);
 	}
 
-	std::cout << __func__ << ": scheduled partition " << partition_id << " to " << ip_addr_  << " msg id : " << call->id << "\n";
+	std::cout << __func__ << ": scheduled partition " << partition_id << " to " << ip_addr_ << "\n";
 }
 class Master;
 /* CS6210_TASK: Handle all the bookkeeping that Master is supposed to do.
@@ -194,6 +194,7 @@ private:
 	bool map_complete;
 	bool reduce_complete;
 	bool trigger_heartbeat;
+	bool first_heartbeat;
 	bool kill_heartbeat;
 	void async_map_reduce();
 	void heartbeat();
@@ -260,17 +261,21 @@ void Master::schedule_heartbeat()
 		if (!map_complete) {				// map operation
 			// if rem_shards is non zero,
 			if (rem_shards.size() > 0) {
-				n_mapper_messages -= rem_shards.size();
-				std::cout << "Decreasing mapper msgs to " << n_mapper_messages << " by " << rem_shards.size() << "\n";
-			} else if (n_mapper_messages == n_shards)
+				//n_mapper_messages -= rem_shards.size();
+				std::cout << "mapper msgs " << n_mapper_messages << " rem " << rem_shards.size() << " n_drop " << n_dropped_maps << "\n";
+			} else if ((n_mapper_messages - n_dropped_maps) == n_shards) {
 				map_complete = true;
+				std::cout << "complete mapper msgs " << n_mapper_messages << " rem " << rem_shards.size() << " n_drop " << n_dropped_maps << "\n";
+			}
 		} else if (!reduce_complete) {		// reduce operation
 			// if rem partitions is non zero,
 			if (rem_partitions.size() > 0) {
-				n_reducer_messages -= rem_partitions.size();
-				std::cout << "Decreasing reduer msgs to " << n_reducer_messages << " by " << rem_partitions.size() << "\n";
-			} else if (output_files.size() == n_partitions)
+				//n_reducer_messages -= rem_partitions.size();
+				std::cout << "reducer msgs " << n_reducer_messages << " rem " << rem_partitions.size() << " n_drop " << n_dropped_reduces << "\n";
+			} else if (output_files.size() == n_partitions) {
 				reduce_complete = true;
+				std::cout << "complete reducer msgs " << n_reducer_messages << " rem " << rem_partitions.size() << " n_drop " << n_dropped_reduces << "\n";
+			}
 		}
 
 		// notify async_map_reduce thread
@@ -294,6 +299,16 @@ bool Master::run() {
 	std::thread schedule_map_jobs(&Master::async_map_reduce, this);
 	mkdir("intermediate", 0777);
 
+	printf("%s: %d\n", __func__, n_workers);
+	// wait for one heartbeat to complete before actually scheduling any job
+	{
+		std::unique_lock<std::mutex> lk(m_hbt);
+		first_heartbeat = true;
+		cv_hbt.wait(lk, [this] { return !first_heartbeat; });
+	}
+	n_dropped_workers = 0;
+	printf("%s: %d %d\n", __func__, n_workers, shards.size());
+
 	bool shards_done = false;
 	while (shards_done == false) {
 		for (int i = 0; i < shards.size(); i++){
@@ -307,8 +322,10 @@ bool Master::run() {
 				ready_queue.pop();
 
 				// if worker was dropped but also in ready_queue(), skip worker
-				if (std::find(dropped_worker_ips.begin(), dropped_worker_ips.end(), worker_ip) != dropped_worker_ips.end())
+				if (std::find(dropped_worker_ips.begin(), dropped_worker_ips.end(), worker_ip) != dropped_worker_ips.end()) {
+					i--;
 					continue;
+				}
 
 				busy_workers[worker_ip] = i;
 				lk.unlock();
@@ -320,7 +337,9 @@ bool Master::run() {
 		}
 
 		// check if all map jobs are complete
+		printf("%s: 111111\n", __func__);
 		schedule_heartbeat();
+		printf("%s: 22222222 %d %d %d\n", __func__, rem_shards.size(), map_complete, n_mapper_messages);
 		if ((rem_shards.size() == 0) && (map_complete == true)) {
 			shards.clear();
 			shards_done = true;
@@ -490,7 +509,7 @@ void Master::async_map_reduce(){
 					n_dropped_reduces++;
 			}		
 
-			std::cout << __func__ << ": Received message from " << call->worker_ip_addr << " " << n_mapper_messages << " : " << n_reducer_messages << " msg id: " <<  call->id << "\n";
+			std::cout << __func__ << ": Received message from " << call->worker_ip_addr << " " << n_mapper_messages << " : " << n_reducer_messages << "\n";
 
 			// Once we're complete, deallocate the call object.
             delete call;
@@ -502,10 +521,10 @@ void Master::async_map_reduce(){
 				std::unique_lock<std::mutex> lk(m_op);
 
 				// "do_it" is set to true when completed map messages equals number of shards or
-				if ((n_dropped_workers == 0) && (n_mapper_messages == n_shards) && !map_complete)
+				if ((n_dropped_workers == 0) && ((n_mapper_messages - n_dropped_maps) == n_shards) && !map_complete)
 					do_it = true;
 				// when completed reduce messages equals number of partitions
-				else if ((n_dropped_workers == 0) && (n_reducer_messages == n_partitions) && !reduce_complete)
+				else if ((n_dropped_workers == 0) && ((n_reducer_messages - n_dropped_reduces) == n_partitions) && !reduce_complete)
 					do_it = true;
 				// when either a worker has been dropped or
 				else if (n_dropped_workers > 0)
@@ -611,7 +630,7 @@ void Master::handle_missing_worker(std::string worker_ip)
 			// add shards that the missing worker previously worked on
 			for (int i = 0; i < client->map_shards.size(); i++)
 				rem_shards.push_back(client->map_shards[i]);
-			std::cout << __func__ << ": shards added: " << client->map_shards.size() << "; remaining shards: " << rem_shards.size() << "\n";
+			std::cout << __func__ << ": shards added: " << client->map_shards.size() << "; remaining shards: " << rem_shards.size() << " completed maps " << client->completed_maps << "\n";
 
 			// increment n_dropped_maps counter to account for map messages that were handled before worker went missing
 			n_dropped_maps += client->completed_maps;
@@ -689,6 +708,7 @@ void Master::heartbeat() {
 	int n = 0, wait_time = 1;
 	CompletionQueue cq2_;
 
+	first_heartbeat = true;
 	kill_heartbeat = false;
 
 	while (!kill_heartbeat) {
@@ -715,6 +735,15 @@ void Master::heartbeat() {
 			} else {
 				msg_rcvd[recv_worker_ip] = false;
 				handle_missing_worker(recv_worker_ip);
+			}
+		}
+
+		// master thread waits for all workers to initialize
+		if (first_heartbeat == true) {
+			{
+				std::unique_lock<std::mutex> lk(m_hbt);
+				first_heartbeat = false;
+				cv_hbt.notify_one();
 			}
 		}
 
