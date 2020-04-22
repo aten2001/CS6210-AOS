@@ -69,6 +69,8 @@ public:
 		ip_addr_ = ip_addr;
 		stub_ = MasterWorker::NewStub(grpc::CreateChannel(ip_addr, grpc::InsecureChannelCredentials()));
 		cq_ = cq;
+		completed_maps = 0;
+		completed_reduces = 0;
 	}
 
 	void schedule_mapper_job(std::string, int, FileShard);
@@ -76,6 +78,8 @@ public:
 	void send_heartbeat_msg(std::string, CompletionQueue *);
 	std::vector<FileShard> map_shards;
 	std::vector<int> reduce_partitions;
+	int completed_maps;
+	int completed_reduces;
 
 private:
 	std::unique_ptr<MasterWorker::Stub> stub_;
@@ -99,19 +103,15 @@ void WorkerClient::schedule_mapper_job(std::string user_id, int n_partitions, Fi
 	map_shards.push_back(shard);
 
 	unsigned int timeout = 1;
-
-	// Set timeout for API
 	std::chrono::system_clock::time_point deadline =
 		std::chrono::system_clock::now() + std::chrono::seconds(timeout);
 
-
 	auto call = new MapCall;
-	call->id = msg_count++;
 	{
 		std::unique_lock<std::mutex> lk(m);
 		call->rpc = stub_->PrepareAsyncmapper(&call->context, query, cq_);
 		call->is_map_job = true;
-	//	call->context.set_deadline(deadline);
+		call->context.set_deadline(deadline);
 		call->worker_ip_addr = ip_addr_;
 		call->rpc->StartCall();
 		call->rpc->Finish(&call->result, &call->status, (void*)call);
@@ -130,18 +130,15 @@ void WorkerClient::schedule_reducer_job(std::string user_id, int partition_id, s
 	}
 
 	unsigned int timeout = 1;
-
-	// Set timeout for API
 	std::chrono::system_clock::time_point deadline =
 		std::chrono::system_clock::now() + std::chrono::seconds(timeout);
 
 	auto call = new ReduceCall;
-	call->id = msg_count++;
 	{
 		std::unique_lock<std::mutex> lk(m);
 		call->rpc = stub_->PrepareAsyncreducer(&call->context, query, cq_);
 		call->is_map_job = false;
-	//	call->context.set_deadline(deadline);
+		call->context.set_deadline(deadline);
 		call->worker_ip_addr = ip_addr_;
 		call->rpc->StartCall();
 		call->rpc->Finish(&call->result, &call->status, (void*)call);
@@ -175,6 +172,9 @@ private:
 	std::map<std::string, int> busy_workers;
 	int n_workers;
 	int n_shards;
+	int n_dropped_workers;
+	int n_dropped_maps;
+	int n_dropped_reduces;
 	std::vector<FileShard> shards;
 	std::vector<FileShard> rem_shards;
 	std::string output_dir;
@@ -199,8 +199,8 @@ private:
 	void heartbeat();
 	void schedule_heartbeat();
 	void handle_missing_worker(std::string);
-	int n_mapper_messages = 0;
-	int n_reducer_messages = 0;
+	int n_mapper_messages;
+	int n_reducer_messages;
 };
 
 /* CS6210_TASK: This is all the information your master will get from the framework.
@@ -214,7 +214,6 @@ Master::Master(const MapReduceSpec& mr_spec, const std::vector<FileShard>& file_
 	user_id = mr_spec.user_id;
 	n_partitions = mr_spec.n_output_files;
 	cq_ = new CompletionQueue;
-	map_complete = false;
 	// Create a thread for each worker and open a channel to make rpc calls
 	for (int i = 0; i < mr_spec.n_workers; i++){
 		auto client = std::unique_ptr<WorkerClient> (new WorkerClient (mr_spec.worker_ipaddr_ports[i], cq_));
@@ -222,50 +221,61 @@ Master::Master(const MapReduceSpec& mr_spec, const std::vector<FileShard>& file_
 		ready_queue.push(mr_spec.worker_ipaddr_ports[i]);
 		worker_ips.push_back(mr_spec.worker_ipaddr_ports[i]);
 	}
+	op_flag = false;
+	map_complete = false;
+	reduce_complete = false;
+	trigger_heartbeat = false;
+	kill_heartbeat = false;
+	n_dropped_workers = 0;
+	n_mapper_messages = 0;
+	n_reducer_messages = 0;
+	n_dropped_maps = 0;
+	n_dropped_reduces = 0;
 }
 
 void Master::schedule_heartbeat()
 {
 	std::cout << __func__ << ": schedule_heartbeat()\n";
-
-	// ensure op (map/reduce) is complete
+	// ensure op (map/reduce) is complete or at least worker has dropped till now
 	{
 		std::unique_lock<std::mutex> lk(m_op);
 		op_flag = true;
 		cv_op.wait(lk, [this] { return !op_flag; });
 	}
-
 	std::cout << __func__ << ": Map or Reduce complete\n";
 
-	// trigger heartbeat
+	// trigger heartbeat and wait for heartbeat complete
 	{
 		std::unique_lock<std::mutex> lk(m_hbt);
 		trigger_heartbeat = true;
 		cv_hbt.notify_one();
 		cv_hbt.wait(lk, [this] { return !trigger_heartbeat; });
 	}
-
-	std::cout << __func__ << ": Triggered heartbeat " << rem_shards.size() << " " << n_mapper_messages << ", " << rem_partitions.size() << " " << n_reducer_messages << "\n";
+	std::cout << __func__ << ": Triggered heartbeat, Map: " << n_mapper_messages << " " << rem_shards.size() << "; Reduce: " << n_reducer_messages << " " << rem_partitions.size() << "\n";
 
 	// inform recv thread
 	{
 		std::unique_lock<std::mutex> lk(m_op);
-		if (!map_complete) {
-			// workers have dropped. few shards incomplete
+
+		if (!map_complete) {				// map operation
+			// if rem_shards is non zero,
 			if (rem_shards.size() > 0) {
 				n_mapper_messages -= rem_shards.size();
 				std::cout << "Decreasing mapper msgs to " << n_mapper_messages << " by " << rem_shards.size() << "\n";
 			} else if (n_mapper_messages == n_shards)
 				map_complete = true;
-		} else if (!reduce_complete) {
-			// workers have dropped. few partitions incomplete
+		} else if (!reduce_complete) {		// reduce operation
+			// if rem partitions is non zero,
 			if (rem_partitions.size() > 0) {
 				n_reducer_messages -= rem_partitions.size();
 				std::cout << "Decreasing reduer msgs to " << n_reducer_messages << " by " << rem_partitions.size() << "\n";
 			} else if (output_files.size() == n_partitions)
 				reduce_complete = true;
 		}
+
+		// notify async_map_reduce thread
 		op_flag = true;
+		n_dropped_workers = 0;
 		cv_op.notify_one();
 	}
 
@@ -286,35 +296,31 @@ bool Master::run() {
 
 	bool shards_done = false;
 	while (shards_done == false) {
-		int num = 0;
 		for (int i = 0; i < shards.size(); i++){
 			FileShard shard = shards[i];
 			{
 				// check if we have a free worker
 				std::unique_lock<std::mutex> lk(m);
-				std::cout << __func__ << ": waiting for worker thread for shard " << i << "\n";
 				cv.wait(lk, [this] { return !ready_queue.empty(); });
 				// great we got the mutex and atleast one free worker
 				std::string worker_ip = ready_queue.front();
 				ready_queue.pop();
-				if (std::find(dropped_worker_ips.begin(), dropped_worker_ips.end(), worker_ip) != dropped_worker_ips.end()) {
-					std::cout << __func__ << ": dropped worker in ready queue " << worker_ip << "\n";
+
+				// if worker was dropped but also in ready_queue(), skip worker
+				if (std::find(dropped_worker_ips.begin(), dropped_worker_ips.end(), worker_ip) != dropped_worker_ips.end())
 					continue;
-				}
+
 				busy_workers[worker_ip] = i;
 				lk.unlock();
 				cv.notify_one();
-				std::cout << __func__ << ": got worker thread for shard " << i << " " << worker_ip << "\n";
+
 				auto client = ip_addr_to_worker[(worker_ip)].get();
 				client->schedule_mapper_job(user_id, n_partitions, shard);
-				num++;
 			}
 		}
 
-		std::cout << __func__ << ": ---> About to trigger map heartbeat " << shards.size() << ":" << num << "\n";
 		// check if all map jobs are complete
 		schedule_heartbeat();
-		std::cout << __func__ << ": ---> map Heartbeat serviced " << rem_shards.size() << "\n";
 		if ((rem_shards.size() == 0) && (map_complete == true)) {
 			shards.clear();
 			shards_done = true;
@@ -332,19 +338,17 @@ bool Master::run() {
 			std::cout << __func__ << " " << shards.size() << " shards were remaining. going again\n";
 		}
 	}
-	std::cout << __func__ << ": Map job left" << std::endl;
 
 	// stop all the workers
+	std::cout << __func__ << ": Map job left" << std::endl;
 	schedule_map_jobs.join();
 	std::cout << __func__ << ": Map job done" << std::endl;
-	map_complete = true;
 
-	std::cout << __func__ << ": Interm files : " << interm_files.size() << "\n";
-	for (auto file = interm_files.begin(); file != interm_files.end(); file++)
-		std::cout << __func__ << *file << "\n";
 
-	//Schedule reduce jobs
-	std::thread schedule_reduce_jobs(&Master::async_map_reduce, this);
+//	std::cout << __func__ << ": Interm files : " << interm_files.size() << "\n";
+//	for (auto file = interm_files.begin(); file != interm_files.end(); file++)
+//		std::cout << __func__ << *file << "\n";
+
 	std::unordered_map<int, std::vector<std::string>> files_to_reduce;
 	for (auto file : interm_files){
 		// intermediate/1_50001.txt
@@ -356,35 +360,41 @@ bool Master::run() {
 		files_to_reduce[idx].push_back(file);
 	}
 
-	std::cout << __func__ << ": 1\n";
-	for (auto o = files_to_reduce.begin(); o != files_to_reduce.end(); o++)
-		partitions.push_back(o->first);
-	std::cout << __func__ << ": 2\n";
+	// initialize partitions
+	for (auto p = files_to_reduce.begin(); p != files_to_reduce.end(); p++)
+		partitions.push_back(p->first);
+
+	// Schedule reduce jobs
+	std::thread schedule_reduce_jobs(&Master::async_map_reduce, this);
 
 	bool partitions_done = false;
 	while (partitions_done == false) {
 
-		int num = 0;
-		for (int i = 0; i < partitions.size(); i++){
-			// check if we have a free worker
-			std::unique_lock<std::mutex> lk(m);
-			cv.wait(lk, [this] { return !ready_queue.empty(); });
-			// great we got the mutex and atleast one free worker
-			std::string worker_ip = ready_queue.front();
-			ready_queue.pop();
-			busy_workers[worker_ip] = partitions[i];
-			lk.unlock();
-			cv.notify_one();
-			auto client = ip_addr_to_worker[(worker_ip)].get();
-			auto files = files_to_reduce[partitions[i]];
-			client->schedule_reducer_job(user_id, partitions[i], output_dir, files);
-			num++;
+		for (int i = 0; i < partitions.size(); i++) {
+			{
+				// check if we have a free worker
+				std::unique_lock<std::mutex> lk(m);
+				cv.wait(lk, [this] { return !ready_queue.empty(); });
+				// great we got the mutex and atleast one free worker
+				std::string worker_ip = ready_queue.front();
+				ready_queue.pop();
+
+				// if worker was dropped but also in ready_queue(), skip worker
+				if (std::find(dropped_worker_ips.begin(), dropped_worker_ips.end(), worker_ip) != dropped_worker_ips.end())
+					continue;
+
+				busy_workers[worker_ip] = partitions[i];
+				lk.unlock();
+				cv.notify_one();
+
+				auto client = ip_addr_to_worker[(worker_ip)].get();
+				auto files = files_to_reduce[partitions[i]];
+				client->schedule_reducer_job(user_id, partitions[i], output_dir, files);
+			}
 		}
 
 		// check if all reduce jobs are complete
-		std::cout << __func__ << ": ---> About to trigger reduce heartbeat " << shards.size() << ":" << num << "\n";
 		schedule_heartbeat();
-		std::cout << __func__ << ": ---> reduce Heartbeat serviced " << rem_shards.size() << "\n";
 		if ((rem_partitions.size() == 0) && (reduce_complete == true)) {
 			partitions.clear();
 			partitions_done = true;
@@ -403,9 +413,8 @@ bool Master::run() {
 		}
 	}
 	
-	std::cout << __func__ << ": Reduce job left" << std::endl;
-
 	// stop all the workers
+	std::cout << __func__ << ": Reduce job left" << std::endl;
 	schedule_reduce_jobs.join();
 	std::cout << __func__ << ": Reduce job done" << std::endl;
 
@@ -416,8 +425,6 @@ bool Master::run() {
 		trigger_heartbeat = true;
 		cv_hbt.notify_one();
 	}
-	std::cout << __func__ << ": Heartbeat thread notified of impending death" << std::endl;
-
 	// wait for heartbeat thread to exit cleanly
 	heartbeat_job.join();
 	std::cout << __func__ << ": Heartbeat ended" << std::endl;
@@ -442,11 +449,9 @@ void Master::async_map_reduce(){
 			if (call->status.ok())
 			{
 				std::cout << __func__ << ": got normal response. curr: " << n_mapper_messages << " : " << n_reducer_messages << "\n";
-				// check if msg if from a missing worker
+				// check if msg if from a dropped worker
 				if (std::find(worker_ips.begin(), worker_ips.end(), call->worker_ip_addr) == worker_ips.end()) {
 					std::cout << __func__ << ": Dropping response from " << call->worker_ip_addr << "\n";
-					if (call->is_map_job) n_mapper_messages++;
-					else n_reducer_messages++;
 
 				} else {
 					// restore the worker back to the ready queue
@@ -457,86 +462,84 @@ void Master::async_map_reduce(){
 						busy_workers.erase(call->worker_ip_addr);
 						cv.notify_one();
 					}
+					auto client = ip_addr_to_worker[call->worker_ip_addr].get();
+					if (!client) {
+						std::cout << "--------->\n";
+					}
 					// based on the job kind, store the result
 					if(call->is_map_job){
 						n_mapper_messages++;
+						client->completed_maps++;
 						MapCall *mcall = dynamic_cast<MapCall *>(call);
-						// no need for the lock, since we won't access this in master until we are done with all map jobs
 						for (int i = 0; i < mcall->result.files_size(); i++)
 							interm_files.insert(mcall->result.files(i).filename());
 					}
 					else{
 						n_reducer_messages++;
+						client->completed_reduces++;
 						ReduceCall* rcall = dynamic_cast<ReduceCall*>(call);
 						output_files.push_back(rcall->result.file().filename());
 					}
 				}
 			} else {
+				// message timed out
 				std::cout << __func__ << ": recv error: " << call->status.error_message() << " for worker " << call->worker_ip_addr << "\n";
+				if (call->is_map_job)
+					n_dropped_maps++;
+				else
+					n_dropped_reduces++;
 			}		
 
 			std::cout << __func__ << ": Received message from " << call->worker_ip_addr << " " << n_mapper_messages << " : " << n_reducer_messages << " msg id: " <<  call->id << "\n";
 
 			// Once we're complete, deallocate the call object.
             delete call;
-			// check if we have received all the required map messages
-			// Note in case we are in reduce job this condition is no longer valid
-			// So check for map_complete before that
+
+			// This flag controls synchronization with master thread based on number of
+			// map or reduce messages received and workers dropped
 			bool do_it = false;
 			{
 				std::unique_lock<std::mutex> lk(m_op);
-				if ((dropped_worker_ips.size() == 0) && (n_mapper_messages == n_shards) && !map_complete)
+
+				// "do_it" is set to true when completed map messages equals number of shards or
+				if ((n_dropped_workers == 0) && (n_mapper_messages == n_shards) && !map_complete)
 					do_it = true;
-				else if ((dropped_worker_ips.size() == 0) && (n_reducer_messages == n_partitions) && !reduce_complete)
+				// when completed reduce messages equals number of partitions
+				else if ((n_dropped_workers == 0) && (n_reducer_messages == n_partitions) && !reduce_complete)
 					do_it = true;
-				else if (dropped_worker_ips.size() > 0)
+				// when either a worker has been dropped or
+				else if (n_dropped_workers > 0)
 					do_it = true;
+
+				// true if we are still in map_phase
 				bool is_map_op = false;
+
+				// "op_flag" is true when master thread has scheduled all map/reduces ops
+				// and waits for async_map_reduce thread to confirm receive of op completion
 				if (op_flag == true && do_it == true) {
 					cv_op.notify_one();
-					std::cout << "notifying run thread for map/reduce\n";
+
+					// clear op_flag and wake up master
 					op_flag = false;
 					if (!map_complete)
 						is_map_op = true;
 					else
 						is_map_op = false;
+
+					// wait for master to signal continue message receive
 					cv_op.wait(lk, [this] { return op_flag; });
 					op_flag = false;
-					std::cout << "finished notifying run thread for map/reduce and completed heartbeat too perhaps\n";
 				}
+
+				// if map is complete, exit thread
 				if (map_complete && is_map_op)
 					return;
+
+				// if reduce is complete, exit thread
 				if (reduce_complete && !is_map_op)
 					return;
 			}
 			std::cout << "back in completion queue \n";
-
-/*
-			if(!map_complete && n_mapper_messages == n_shards) {
-				{
-					
-					// ensure op (map) is complete
-					std::unique_lock<std::mutex> lk(m_op);
-					std::cout << __func__ << ": Notifying end of map\n";
-					cv_op.notify_one();
-					cv_op.wait(lk, [this] { return map_complete; });
-				}
-				if (map_complete)
-					return;
-			}
-			// in reduce and we have received all the files
-			if(map_complete && output_files.size() == n_partitions) {
-				{
-					// ensure op (reduce) is complete
-					std::cout << __func__ << ": Notifying end of reduce\n";
-					std::unique_lock<std::mutex> lk(m_op);
-					cv_op.notify_one();
-					cv_op.wait(lk, [this] { return reduce_complete; });
-				}
-				if (reduce_complete)
-					return;
-			}
-*/
 		}
 }
 
@@ -545,25 +548,24 @@ void WorkerClient::send_heartbeat_msg(std::string worker_port, CompletionQueue *
 	// Connection timeout in seconds
 	unsigned int timeout = 1;
 
-	auto call = new HeartbeatCall;
-	call->id = 0;
-
 	// Set timeout for API
 	std::chrono::system_clock::time_point deadline =
 		std::chrono::system_clock::now() + std::chrono::seconds(timeout);
 
-	call->context.set_deadline(deadline);
+	auto call = new HeartbeatCall;
 
-//	std::cout << __func__ << ": sending heartbeat message to " << worker_port << "\n";
+	call->worker_ip_addr = worker_port;
+	call->context.set_deadline(deadline);
+	call->is_map_job = false;
+
 
 	HeartbeatQuery query;
 	query.set_id(worker_port);
 
 	{
+		// mutex to use worker client's stub
 		std::unique_lock<std::mutex> lk(m);
 		call->rpc = stub_->PrepareAsyncheartbeat(&call->context, query, cq2_);
-		call->worker_ip_addr = worker_port;
-		call->is_map_job = false;
 		call->rpc->StartCall();
 		call->rpc->Finish(&call->result, &call->status, (void*)call);
 	}
@@ -578,14 +580,14 @@ std::string recv_heartbeat_msg(std::string in, CompletionQueue *cq2_, bool *is_e
 
 	GPR_ASSERT(cq2_->Next(&got_tag, &ok));
 	HeartbeatCall* call = static_cast<HeartbeatCall*>(got_tag);
-	//GPR_ASSERT(ok);
+
+	// message call status not ok if timeout happened
 	if (!call->status.ok()) {
 		std::cout << __func__ << ": recv error: " << call->status.error_message() << " for worker " << call->worker_ip_addr << "\n";
 		*is_error = true;
 		ret = call->worker_ip_addr;
 	} else {
 		ret = call->result.id();
-//		std::cout << __func__ << ": received heartbeat message from " << ret << "\n";
 		*is_error = false;
 	}
 	
@@ -602,14 +604,19 @@ void Master::handle_missing_worker(std::string worker_ip)
 			std::lock_guard<std::mutex> lk(m);
 			auto client = ip_addr_to_worker[worker_ip].get();
 			if (!client) {
-				std::cout << __func__ << ": : " << worker_ip << " already died\n";
+				//std::cout << __func__ << ": : " << worker_ip << " already died\n";
 				return;
 			}
-			std::cout << __func__ << ": : " << worker_ip << " " << client->map_shards.size() << "\n";
+
+			// add shards that the missing worker previously worked on
 			for (int i = 0; i < client->map_shards.size(); i++)
 				rem_shards.push_back(client->map_shards[i]);
 			std::cout << __func__ << ": shards added: " << client->map_shards.size() << "; remaining shards: " << rem_shards.size() << "\n";
 
+			// increment n_dropped_maps counter to account for map messages that were handled before worker went missing
+			n_dropped_maps += client->completed_maps;
+
+			// remove worker from workflow
 			busy_workers.erase(worker_ip);
 			ip_addr_to_worker.erase(worker_ip);
 			for (auto ip = worker_ips.begin(); ip != worker_ips.end(); ip++) {
@@ -620,6 +627,7 @@ void Master::handle_missing_worker(std::string worker_ip)
 				}
 			}
 
+			// remove any intermediate files created by worker
 			int pos = worker_ip.find_first_of(':') + 1;
 			std::string interm_file_substr = worker_ip.substr(pos);
 			for (auto file = interm_files.begin(); file != interm_files.end(); file++) {
@@ -631,6 +639,7 @@ void Master::handle_missing_worker(std::string worker_ip)
 			}
 			dropped_worker_ips.push_back(worker_ip);
 			n_workers--;
+			n_dropped_workers++;
 		}
 	} else {
 
@@ -638,16 +647,20 @@ void Master::handle_missing_worker(std::string worker_ip)
 		{
 			std::lock_guard<std::mutex> lk(m);
 			auto client = ip_addr_to_worker[worker_ip].get();
+
+			// add partitions that the missing worker previously worked on and remove created output file if any
 			for (int i = 0; i < client->reduce_partitions.size(); i++) {
 				rem_partitions.push_back(client->reduce_partitions[i]);
 				std::string output_file = output_dir + "/" + std::to_string(client->reduce_partitions[i]);
 				std::remove(output_file.c_str());
-				std::cout << __func__ << ": Worker " << worker_ip << " output file " << output_file << " deleted\n";
+				//std::cout << __func__ << ": Worker " << worker_ip << " output file " << output_file << " deleted\n";
 			}
 			std::cout << __func__ << ": partitions added: " << client->reduce_partitions.size() << "; remaining partitions: " << rem_partitions.size() << "\n";
 
-			n_reducer_messages -= client->reduce_partitions.size();
+			// increment n_dropped_maps counter to account for map messages that were handled before worker went missing
+			n_dropped_reduces += client->completed_reduces;
 
+			// remove worker from workflow
 			busy_workers.erase(worker_ip);
 			ip_addr_to_worker.erase(worker_ip);
 			for (auto ip = worker_ips.begin(); ip != worker_ips.end(); ip++) {
@@ -659,6 +672,7 @@ void Master::handle_missing_worker(std::string worker_ip)
 			}
 			dropped_worker_ips.push_back(worker_ip);
 			n_workers--;
+			n_dropped_workers++;
 		}
 
 	}
@@ -682,7 +696,6 @@ void Master::heartbeat() {
 
 		auto start = std::chrono::system_clock::now();
 
-		//std::cout << __func__ << ": sending all heartbeats. workers: " << n_workers << "\n";
 		// iterate over workers
 		// async send message to each worker
 		for (auto ip = worker_ips.begin(); ip != worker_ips.end(); ip++) {
@@ -690,8 +703,6 @@ void Master::heartbeat() {
 			client->send_heartbeat_msg(*ip, &cq2_);
 			msg_rcvd[*ip] = false;
 		}
-
-		//std::cout << __func__ << ": sent all heartbeats\n";
 
 		// iterate over workers
 		// async wait for responses and check worker id
@@ -707,9 +718,7 @@ void Master::heartbeat() {
 			}
 		}
 
-		std::cout << __func__ << ": received all heartbeats and/or errors\n";
-
-		// heartbeat was scheduled. inform end of heartbeat
+		// if heartbeat was scheduled. inform end of heartbeat
 		if (trigger_heartbeat == true) {
 			{
 				std::unique_lock<std::mutex> lk(m_hbt);
@@ -727,7 +736,6 @@ void Master::heartbeat() {
 		// sleep if time spent less than heartbeat timeout
 		long diff = end_val - start_val;
 		if (diff < 1000) {
-			//std::cout << __func__ << ": Heartbeat thread sleeping " << n << " " << start_val << " " << end_val << " " << diff << "\n";
 			{
 				// conditional sleep to wakeup thread when schedule_heartbeat() is called
 				std::unique_lock<std::mutex> lk(m_hbt);
