@@ -58,7 +58,6 @@ public:
 				status_ = PROCESS;
 
 				service_->Requestmapper(&ctx_, &request_, &responder_, cq_, cq_, this);
-				printf("Waiting on message\n");
 
 			} else if (status_ == PROCESS) {
 				
@@ -72,9 +71,7 @@ public:
 				responder_.Finish(reply_, Status::OK, this);
 				// std::cout << "result: " << reply_.files(0).filename() << std::endl;
 
-				printf("Handled map message\n");
 			} else {
-				printf("Map delviered\n");
 				GPR_ASSERT(status_ == FINISH);
 				delete this;
 			}
